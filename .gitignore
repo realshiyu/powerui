@@ -1,0 +1,35 @@
+# Build output and local runtime data
+/artifacts/
+**/bin/
+**/obj/
+PowerUI.state.xml*
+*.log
+*.tmp
+*.bak
+*.exe
+*.dll
+*.pdb
+*.zip
+*.capture.txt
+
+# Local planning and agent configuration
+/CONTEXT.md
+/docs/requirements.md
+/.codex/
+/.agents/
+
+# Editors and credentials
+/.vs/
+/.idea/
+/.vscode/
+*.user
+*.suo
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+Thumbs.db
+.DS_Store
