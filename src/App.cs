@@ -17,6 +17,8 @@ using Forms = System.Windows.Forms;
 using MediaColor = System.Windows.Media.Color;
 using DrawingColor = System.Drawing.Color;
 
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
+
 namespace PowerUI
 {
     internal sealed class App : IDisposable
@@ -40,6 +42,12 @@ namespace PowerUI
         [STAThread]
         private static int Main(string[] args)
         {
+            AppContext.SetSwitch("Switch.System.Windows.DoNotScaleForDpiChanges", false);
+            if (args.Length == 1 && args[0] == "--about")
+            {
+                ShowAbout();
+                return 0;
+            }
             bool created;
             using (var mutex = new Mutex(true, "Local\\PowerUI.Tray", out created))
             {
@@ -70,7 +78,7 @@ namespace PowerUI
                             capture.Start();
                         }
                         else if (args.Length == 1 && args[0] == "--show") app.Show();
-                        else if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.exe [--show|--capture path]");
+                        else if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.exe [--show|--about|--capture path]");
                         else if (stateIsNew(app.state)) app.Show();
                         application.Run();
                     }
@@ -88,6 +96,24 @@ namespace PowerUI
         }
 
         private static bool stateIsNew(AppState state) { return state.Percent < 0; }
+
+        private static void ShowAbout()
+        {
+            var tabs = new TabControl();
+            string[] resources = { "README.txt", "LICENSE", "THIRD_PARTY_NOTICES.md" };
+            string[] titles = { "使用说明", "MIT License", "第三方声明" };
+            for (int index = 0; index < resources.Length; index++)
+            {
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resources[index]))
+                using (var reader = new StreamReader(stream))
+                    tabs.Items.Add(new TabItem { Header = titles[index], Content = new TextBox {
+                        Text = reader.ReadToEnd(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap,
+                        VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(12)
+                    } });
+            }
+            new Window { Title = "关于 PowerUI", Width = 680, Height = 560, MinWidth = 320, MinHeight = 240,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen, Content = tabs }.ShowDialog();
+        }
 
         private App(Application application, bool? themeOverride)
         {
@@ -154,6 +180,7 @@ namespace PowerUI
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("打开 PowerUI", null, delegate { Show(); });
             menu.Items.Add("刷新电量", null, delegate { Refresh(); });
+            menu.Items.Add("关于 PowerUI", null, delegate { ShowAbout(); });
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { application.Shutdown(); });
             tray = new Forms.NotifyIcon { Text = "PowerUI", ContextMenuStrip = menu };

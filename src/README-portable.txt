@@ -1,10 +1,11 @@
 PowerUI 0.1 - Windows 11 x64
 
 项目：https://github.com/realshiyu/powerui
-Copyright (c) 2026 realshiyu. MIT License，见 LICENSE。
-独立社区项目，与雷柏 / RAPOO、罗技 / Logitech 无隶属或背书关系，见 THIRD_PARTY_NOTICES.md。
+Copyright (c) 2026 realshiyu. MIT License，见“MIT License”页。
+独立社区项目，与雷柏 / RAPOO、罗技 / Logitech 无隶属或背书关系，见“第三方声明”页。
 
 启动 PowerUI.exe。左键点击托盘数字打开面板，右键菜单或设置中可退出。
+仅需此 EXE，无需旁置配置或 DLL。托盘右键“关于 PowerUI”或 --about 可查看内嵌说明与许可。
 开机启动默认关闭，可在设置中开启。无需厂商软件常驻，无需管理员权限。
 
 当前实测：雷柏 VT3S MAX，接收器 24AE:1421。
@@ -23,6 +24,7 @@ VT3 MAX 24AE:1417 未实测，不承诺其他型号。P5 PLUS 底座不在读取
 需要 Windows 自带 .NET Framework 4.8 或更新版本，不需要额外安装 .NET SDK。
 本程序为未签名开发版。低电量通知送达、真实充电/睡眠/拔插、开机登录仍待实机验收。
 
-附带 PowerUI.Probe.exe：无参数只读枚举；--listen 最多被动等候8秒，输出真实电量。
+诊断工具不随单文件版分发，可从源码运行 build.ps1 -IncludeProbe 单独构建。
+PowerUI.Probe.exe：无参数只读枚举；--listen 最多被动等候8秒，输出真实电量。
 --logitech 只读查询 Bolt 或 MX Master 3S 蓝牙型号和电量，不修改鼠标设置；查询可能让鼠标响应。
 诊断不输出设备路径或序列号。

@@ -1,5 +1,7 @@
 # PowerUI
 
+<img src="docs/images/app-icon.png" width="64" height="64" alt="PowerUI 鼠标电量图标">
+
 Windows 11 无线外设电量托盘工具。绿色数字托盘、磨砂玻璃弹出面板，不需要厂商控制中心常驻。
 
 [下载便携版](https://github.com/realshiyu/powerui/releases) · [兼容设备](#兼容设备) · [构建](#从源码构建) · [报告问题](https://github.com/realshiyu/powerui/issues)
@@ -26,7 +28,7 @@ Bolt 截图取自首次适配验证，连接标签为当时版本的“2.4G 无�
 - 超过 5 分钟没有新电量时显示 `--`，详情保留上次读数及时间。
 - 默认电量不高于 20% 时提醒一次；新读数高于 25% 后才允许下一轮提醒，重启不会重复提醒。
 - 可调整提醒阈值（5%–90%）、关闭提醒，可选开机启动且默认关闭。
-- 免安装、无第三方运行库、不安装服务、不要求管理员权限。
+- 单个 EXE 免安装运行，无第三方运行库、不安装服务、不要求管理员权限。
 
 ## 兼容设备
 
@@ -45,13 +47,15 @@ Bolt 截图取自首次适配验证，连接标签为当时版本的“2.4G 无�
 
 ## 使用
 
-1. 从 [Releases](https://github.com/realshiyu/powerui/releases) 下载 ZIP，解压到当前用户可写目录。
+1. 从 [Releases](https://github.com/realshiyu/powerui/releases) 下载 `PowerUI.exe`（或下载 ZIP 后解压），放到当前用户可写目录。
 2. 启动 `PowerUI.exe`，左键托盘数字打开面板，右键菜单或设置中退出。
 3. 初次启动若 Windows 将图标放在托盘折叠区，可将其拖到任务栏通知区域。
 
 要求 Windows 11 x64 和系统自带的 .NET Framework 4.8 或更新版本。Windows 11 22H2 / build 22621 起支持本项目使用的 DWM Acrylic 属性；旧版本回退为不透明背景。开发版暂未签名，仅运行自己构建或可信来源的文件，不要关闭系统安全保护。
 
 设置和上次电量保存在程序旁的 `PowerUI.state.xml`，上一份状态保存在 `.bak`。移动便携文件夹时保留它们；启用过开机启动的，移动程序后需重新开启。首次保存失败时请换用可写目录，而不是提权运行。
+
+分发时只需一个 `PowerUI.exe`，无需旁置 `.config`、DLL 或诊断工具；运行后生成的状态文件不是启动依赖。使用说明、MIT 许可和第三方声明已内嵌，可从托盘右键菜单的“关于 PowerUI”或 `PowerUI.exe --about` 查看。
 
 ## 隐私与设备安全
 
@@ -72,15 +76,18 @@ Set-Location powerui
 
 脚本使用系统 .NET Framework C# 编译器，不需要 .NET SDK、NuGet 或 npm。若当前 PowerShell 策略不允许运行脚本，请遵循所在组织的脚本执行规则，不要修改整机安全策略。
 
-产物位于 `artifacts/`。便携包仅包含主程序、运行配置、诊断程序、说明及许可文件，不包含开发机的设置或读数。CI 只验证构建与打包，不代表真实设备兼容性验证。
+单文件产物为 `artifacts/portable/PowerUI.exe`，ZIP 位于 `artifacts/`，其中仅包含这个 EXE，不包含开发机的设置或读数。程序依然使用 Windows 自带的 .NET Framework，不捆绑额外运行时。CI 只验证构建与打包，不代表真实设备兼容性验证。
 
 ## 电量诊断
 
 ```powershell
-.\artifacts\PowerUI.Probe.exe
-.\artifacts\PowerUI.Probe.exe --listen
-.\artifacts\PowerUI.Probe.exe --logitech
+.\build.ps1 -IncludeProbe
+.\artifacts\portable\PowerUI.Probe.exe
+.\artifacts\portable\PowerUI.Probe.exe --listen
+.\artifacts\portable\PowerUI.Probe.exe --logitech
 ```
+
+诊断工具仅按需构建，不随单文件便携包分发。
 
 无参数只读枚举雷柏和罗技 HID 描述符；`--listen` 最多等待 8 秒，只解析雷柏电量报告。`--logitech` 对单个严格匹配的 Bolt 或 MX Master 3S 蓝牙接口进行只读 HID++ 查询，最多使用 8 秒预算。诊断不输出设备路径或序列号。
 
