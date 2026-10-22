@@ -8,6 +8,17 @@ namespace PowerUI
         {
             try
             {
+                if (args.Length == 1 && args[0] == "--logitech")
+                {
+                    var logitechDevices = HidDevice.EnumerateSupported().FindAll(LogitechBattery.IsSupported);
+                    if (logitechDevices.Count != 1) throw new InvalidOperationException("Expected exactly one accessible Logitech Bolt or MX Master 3S Bluetooth HID++ long-report interface.");
+                    Console.WriteLine("Read-only HID++ device-name, feature discovery and battery queries; no settings changed.");
+                    var reading = LogitechBattery.Read(logitechDevices[0], 8000, Console.WriteLine);
+                    if (reading == null) { Console.WriteLine("No MX Master 3S battery response. Device may be sleeping."); return 4; }
+                    Console.WriteLine("Endpoint={0:X4}:{1:X4} Device={2} DeviceIndex={3} Battery={4}% Charging={5} ReadAtUtc={6:o}",
+                        reading.ReceiverVid, reading.ReceiverPid, reading.DeviceName, reading.DeviceIndex, reading.Percent, reading.Charging, reading.ReadAtUtc);
+                    return 0;
+                }
                 if (args.Length == 1 && (args[0] == "--listen" || args[0] == "--query"))
                 {
                     bool request = args[0] == "--query";
@@ -26,18 +37,18 @@ namespace PowerUI
                         reading.ReceiverPid, reading.Percent < 0 ? "unknown" : reading.Percent + "%", reading.Charging, reading.ReadAtUtc);
                     return 0;
                 }
-                if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.Probe.exe [--listen|--query]");
-                var devices = HidDevice.EnumerateRapoo();
-                Console.WriteLine("HID interfaces: {0}; Rapoo paths: {1}; inaccessible Rapoo paths: {2}; last open error: {3}",
-                    HidDevice.InterfaceCount, HidDevice.RapooPathCount, HidDevice.InaccessibleCount, HidDevice.LastOpenError);
-                Console.WriteLine("Rapoo HID collections: {0}", devices.Count);
+                if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.Probe.exe [--listen|--query|--logitech]");
+                var devices = HidDevice.EnumerateSupported();
+                Console.WriteLine("HID interfaces: {0}; supported vendor paths: {1}; inaccessible paths: {2}; last open error: {3}",
+                    HidDevice.InterfaceCount, HidDevice.SupportedPathCount, HidDevice.InaccessibleCount, HidDevice.LastOpenError);
+                Console.WriteLine("Rapoo/Logitech HID collections: {0}", devices.Count);
                 foreach (var device in devices)
                 {
                     var caps = device.Capabilities;
                     Console.WriteLine("VID={0:X4} PID={1:X4} Version={2:X4} Usage={3:X4}:{4:X4} Input={5} Output={6} Feature={7} Product={8}",
                         device.VendorId, device.ProductId, device.Version, caps.UsagePage, caps.Usage,
                         caps.InputLength, caps.OutputLength, caps.FeatureLength, device.Product);
-                    if (caps.UsagePage == 0xff00)
+                    if (caps.UsagePage >= 0xff00)
                         Console.WriteLine("  Report IDs: Input={0} Output={1} Feature={2}", device.InputReportIds, device.OutputReportIds, device.FeatureReportIds);
                 }
                 Console.WriteLine("Enumeration only. No HID reports sent. Device paths and serial numbers omitted.");

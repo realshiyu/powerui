@@ -13,6 +13,9 @@ namespace PowerUI
         public int Percent = -1;
         public bool Charging;
         public ushort ReceiverPid;
+        public ushort ReceiverVid;
+        public byte DeviceIndex;
+        public string DeviceName;
         public DateTime ReadAtUtc;
         public DateTime StatusAtUtc;
 

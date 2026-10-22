@@ -86,7 +86,7 @@
                     <TextBlock Text="&#xE962;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="29" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1">
                         <TextBlock x:Name="DeviceName" Text="雷柏鼠标" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                        <TextBlock Text="2.4G 无线" Foreground="{DynamicResource Muted}" Margin="0,4,0,0"/>
+                        <TextBlock x:Name="Connection" Text="无线连接" Foreground="{DynamicResource Muted}" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Grid>
                 <Grid>

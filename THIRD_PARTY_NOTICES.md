@@ -18,6 +18,11 @@
 
 Windows 接口及材质依据 [Microsoft Learn](https://learn.microsoft.com/windows/) 文档实现。参考链接不表示第三方提供支持或背书。
 
+罗技 HID++ 报告结构、Unified Battery 参数与名称分段查询参考以下开源实现中的协议事实，另行实现本项目的 Windows 通信代码；未复制或打包这些项目的源码：
+
+- [Linux HID++ 驱动](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c)（GPL-2.0-only）
+- [Solaar HID++ 2.0 实现](https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/hidpp20.py)（GPL-2.0-or-later）
+
 ## 商标
 
-Windows、Microsoft、雷柏 / RAPOO 以及产品型号均属于其各自权利人，仅用于描述系统要求与兼容性。PowerUI 是独立项目，与这些厂商没有隶属、授权或背书关系。
+Windows、Microsoft、雷柏 / RAPOO、罗技 / Logitech、Logi Bolt 以及产品型号均属于其各自权利人，仅用于描述系统要求与兼容性。PowerUI 是独立项目，与这些厂商没有隶属、授权或背书关系。

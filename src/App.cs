@@ -168,7 +168,8 @@ namespace PowerUI
         }
 
         private T Control<T>(string name) where T : class { return (T)window.FindName(name); }
-        private string Model { get { return state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "雷柏鼠标"; } }
+        private string Model { get { return state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
+            : state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "无线鼠标"; } }
         private bool Recent { get { return freshThisRun && !state.Charging && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= TimeSpan.FromMinutes(5) && state.ReadAtUtc <= DateTime.UtcNow; } }
         private bool ChargingRecent { get { return statusFreshThisRun && state.Charging && DateTime.UtcNow - state.StatusAtUtc <= TimeSpan.FromMinutes(5); } }
 
@@ -206,13 +207,19 @@ namespace PowerUI
             Update();
             try
             {
-                // The receiver's battery report is periodic: listen without waking or reconfiguring the mouse.
-                var reading = await Task.Run(() => RapooBattery.Read(5000, false));
+                var reading = await Task.Run(() => DeviceBattery.Read(5000));
                 if (disposed) return;
                 if (reading == null) readError = "暂未取得新读数";
                 else
                 {
-                    if (state.ReceiverPid != reading.ReceiverPid) state.Alerted = false;
+                    ushort previousVid = state.ReceiverVid == 0 && state.ReceiverPid != 0 ? (ushort)0x24ae : state.ReceiverVid;
+                    if (previousVid != reading.ReceiverVid || state.ReceiverPid != reading.ReceiverPid || state.DeviceIndex != reading.DeviceIndex)
+                    {
+                        state.Alerted = false;
+                        state.Percent = -1;
+                        state.ReadAtUtc = default(DateTime);
+                        freshThisRun = false;
+                    }
                     if (reading.Percent >= 0)
                     {
                         state.Percent = reading.Percent;
@@ -221,6 +228,9 @@ namespace PowerUI
                     }
                     state.Charging = reading.Charging;
                     state.ReceiverPid = reading.ReceiverPid;
+                    state.ReceiverVid = reading.ReceiverVid;
+                    state.DeviceIndex = reading.DeviceIndex;
+                    state.DeviceName = reading.DeviceName;
                     state.StatusAtUtc = reading.ReadAtUtc;
                     statusFreshThisRun = true;
                     readError = null;
@@ -255,6 +265,8 @@ namespace PowerUI
             bool recent = Recent;
             string label = recent ? state.Percent.ToString() : "--";
             Control<TextBlock>("DeviceName").Text = Model;
+            Control<TextBlock>("Connection").Text = state.ReceiverVid == 0x046d
+                ? (state.ReceiverPid == 0xb034 ? "蓝牙" : "Logi Bolt · 2.4G 无线") : "2.4G 无线";
             Control<TextBlock>("Battery").Text = label;
             Control<TextBlock>("Percent").Visibility = recent ? Visibility.Visible : Visibility.Collapsed;
             Control<TextBlock>("Charging").Visibility = ChargingRecent ? Visibility.Visible : Visibility.Collapsed;

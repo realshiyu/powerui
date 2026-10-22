@@ -12,6 +12,9 @@ namespace PowerUI
         internal bool Charging;
         internal DateTime ReadAtUtc;
         internal ushort ReceiverPid;
+        internal ushort ReceiverVid;
+        internal byte DeviceIndex;
+        internal string DeviceName;
     }
 
     internal static class RapooBattery
@@ -31,7 +34,7 @@ namespace PowerUI
             Reports = BatteryReports = 0;
             LastStatus = LastBattery = -1;
             FirmwareAck = BatteryAck = -1;
-            var all = HidDevice.EnumerateRapoo();
+            var all = HidDevice.EnumerateSupported();
             var devices = all.Where(IsSupported).ToList();
             if (devices.Count == 0) throw new IOException("No supported Rapoo mouse receiver interface is accessible.");
             if (devices.Count != 1) throw new IOException("Multiple supported receivers found; refusing ambiguous selection.");
@@ -60,6 +63,7 @@ namespace PowerUI
                         {
                             var reading = task.GetAwaiter().GetResult();
                             reading.ReceiverPid = device.ProductId;
+                            reading.ReceiverVid = device.VendorId;
                             return reading;
                         }
                         return null;

@@ -9,7 +9,7 @@ namespace PowerUI
 {
     internal sealed class HidDevice
     {
-        internal static int InterfaceCount, RapooPathCount, InaccessibleCount;
+        internal static int InterfaceCount, SupportedPathCount, InaccessibleCount;
         internal static int LastOpenError;
         internal string Path;
         internal string Product;
@@ -33,9 +33,9 @@ namespace PowerUI
             finally { Marshal.FreeHGlobal(values); }
         }
 
-        internal static List<HidDevice> EnumerateRapoo()
+        internal static List<HidDevice> EnumerateSupported()
         {
-            InterfaceCount = RapooPathCount = InaccessibleCount = LastOpenError = 0;
+            InterfaceCount = SupportedPathCount = InaccessibleCount = LastOpenError = 0;
             var devices = new List<HidDevice>();
             Guid guid;
             HidNative.HidD_GetHidGuid(out guid);
@@ -64,8 +64,11 @@ namespace PowerUI
                         if (!HidNative.SetupDiGetDeviceInterfaceDetail(set, ref info, detail, size, out size, IntPtr.Zero))
                             throw new Win32Exception();
                         string path = Marshal.PtrToStringUni(IntPtr.Add(detail, 4));
-                        if (path.IndexOf("vid_24ae", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                        RapooPathCount++;
+                        if (path.IndexOf("vid_24ae", StringComparison.OrdinalIgnoreCase) < 0
+                            && path.IndexOf("vid_046d", StringComparison.OrdinalIgnoreCase) < 0
+                            && path.IndexOf("vid&02046d", StringComparison.OrdinalIgnoreCase) < 0
+                            && path.IndexOf("vid&0002046d", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        SupportedPathCount++;
                         using (var handle = HidNative.CreateFile(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero))
                         {
                             if (handle.IsInvalid)
@@ -76,7 +79,8 @@ namespace PowerUI
                             }
                             var attributes = new HidNative.Attributes();
                             attributes.Size = Marshal.SizeOf(attributes);
-                            if (!HidNative.HidD_GetAttributes(handle, ref attributes) || attributes.VendorId != 0x24ae) continue;
+                            if (!HidNative.HidD_GetAttributes(handle, ref attributes)
+                                || (attributes.VendorId != 0x24ae && attributes.VendorId != 0x046d)) continue;
                             var device = new HidDevice();
                             device.Path = path;
                             device.VendorId = attributes.VendorId;
