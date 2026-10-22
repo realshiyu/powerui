@@ -31,6 +31,7 @@ namespace PowerUI
         private Icon icon;
         private string iconLabel;
         private bool iconDark;
+        private BatteryColorScheme iconColorScheme;
         private readonly IntPtr handle;
         private readonly bool? themeOverride;
         private int backdropResult;
@@ -127,6 +128,18 @@ namespace PowerUI
             Control<CheckBox>("Alerts").IsChecked = state.Alerts;
             Control<Slider>("Threshold").Value = state.Threshold;
             Control<CheckBox>("Startup").IsChecked = IsStartupEnabled();
+            foreach (BatteryColorScheme scheme in Enum.GetValues(typeof(BatteryColorScheme)))
+            {
+                var option = Control<RadioButton>("Color" + scheme);
+                option.IsChecked = state.ColorScheme == scheme;
+                option.Checked += delegate(object sender, RoutedEventArgs e)
+                {
+                    if (initializing) return;
+                    state.ColorScheme = (BatteryColorScheme)Enum.Parse(typeof(BatteryColorScheme), ((RadioButton)sender).Tag.ToString());
+                    Save();
+                    Update();
+                };
+            }
             Control<CheckBox>("Alerts").Checked += AlertsChanged;
             Control<CheckBox>("Alerts").Unchecked += AlertsChanged;
             Control<Slider>("Threshold").ValueChanged += delegate
@@ -196,7 +209,7 @@ namespace PowerUI
         {
             settingsOpen = !settingsOpen;
             Control<StackPanel>("SettingsPanel").Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            window.Height = settingsOpen ? 516 : 300;
+            window.Height = settingsOpen ? 592 : 300;
             Place();
         }
 
@@ -281,26 +294,39 @@ namespace PowerUI
             Control<TextBlock>("SaveStatus").Text = saveError ?? "";
             tray.Text = Model + " · " + (ChargingRecent ? "充电中" : recent ? state.Percent + "%" : "电量未更新");
             bool taskbarDark = ReadPreference("SystemUsesLightTheme", 1) == 0;
-            if (iconLabel != label || icon == null || iconDark != taskbarDark)
+            if (iconLabel != label || icon == null || iconDark != taskbarDark || iconColorScheme != state.ColorScheme)
             {
-                var next = MakeIcon(label, taskbarDark);
+                var next = MakeIcon(label, taskbarDark, state.ColorScheme);
                 tray.Icon = next;
                 if (icon != null) icon.Dispose();
                 icon = next;
                 iconLabel = label;
                 iconDark = taskbarDark;
+                iconColorScheme = state.ColorScheme;
             }
         }
 
-        private static Icon MakeIcon(string label, bool dark)
+        private static Icon MakeIcon(string label, bool dark, BatteryColorScheme scheme)
         {
+            DrawingColor backgroundColor = DrawingColor.FromArgb(50, 232, 117);
+            DrawingColor inkColor = DrawingColor.FromArgb(8, 34, 18);
+            switch (scheme)
+            {
+                case BatteryColorScheme.GreenWhite: backgroundColor = DrawingColor.FromArgb(24, 128, 56); inkColor = DrawingColor.White; break;
+                case BatteryColorScheme.BlueWhite: backgroundColor = DrawingColor.FromArgb(0, 95, 184); inkColor = DrawingColor.White; break;
+                case BatteryColorScheme.BlackWhite: backgroundColor = DrawingColor.FromArgb(32, 32, 32); inkColor = DrawingColor.White; break;
+                case BatteryColorScheme.WhiteBlack: backgroundColor = DrawingColor.FromArgb(245, 245, 245); inkColor = DrawingColor.FromArgb(24, 24, 24); break;
+            }
+            if (label == "--")
+            {
+                backgroundColor = dark ? DrawingColor.FromArgb(190, 204, 194) : DrawingColor.FromArgb(217, 226, 220);
+                inkColor = DrawingColor.FromArgb(8, 34, 18);
+            }
             using (var bitmap = new Bitmap(32, 32))
             using (var graphics = Graphics.FromImage(bitmap))
             using (var family = new System.Drawing.FontFamily("Segoe UI"))
-            using (var background = new SolidBrush(label == "--"
-                ? (dark ? DrawingColor.FromArgb(190, 204, 194) : DrawingColor.FromArgb(217, 226, 220))
-                : DrawingColor.FromArgb(50, 232, 117)))
-            using (var ink = new SolidBrush(DrawingColor.FromArgb(8, 34, 18)))
+            using (var background = new SolidBrush(backgroundColor))
+            using (var ink = new SolidBrush(inkColor))
             using (var tile = new System.Drawing.Drawing2D.GraphicsPath())
             using (var digits = new System.Drawing.Drawing2D.GraphicsPath())
             {

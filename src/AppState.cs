@@ -5,8 +5,11 @@ using System.Xml.Serialization;
 
 namespace PowerUI
 {
+    public enum BatteryColorScheme { GreenDark, GreenWhite, BlueWhite, BlackWhite, WhiteBlack }
+
     public sealed class AppState
     {
+        public BatteryColorScheme ColorScheme = BatteryColorScheme.GreenDark;
         public bool Alerts = true;
         public int Threshold = 20;
         public bool Alerted;
