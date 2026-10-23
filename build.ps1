@@ -11,7 +11,7 @@ $output = $OutputDirectory
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 if ($IncludeProbe) {
     & $compiler /nologo /codepage:65001 /optimize+ /platform:x64 /target:exe "/out:$output\PowerUI.Probe.exe" `
-        (Join-Path $PSScriptRoot 'src\HidDevice.cs') (Join-Path $PSScriptRoot 'src\RapooBattery.cs') (Join-Path $PSScriptRoot 'src\LogitechBattery.cs') (Join-Path $PSScriptRoot 'src\Probe.cs')
+        (Join-Path $PSScriptRoot 'src\HidDevice.cs') (Join-Path $PSScriptRoot 'src\RapooBattery.cs') (Join-Path $PSScriptRoot 'src\LogitechBattery.cs') (Join-Path $PSScriptRoot 'src\VgnBattery.cs') (Join-Path $PSScriptRoot 'src\Probe.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Probe build failed.' }
     Write-Output "Built $output\PowerUI.Probe.exe"
 }
@@ -25,7 +25,7 @@ $references = @('PresentationFramework', 'PresentationCore', 'WindowsBase') | Fo
     "/resource:$PSScriptRoot\src\README-portable.txt,README.txt" `
     "/resource:$PSScriptRoot\LICENSE,LICENSE" "/resource:$PSScriptRoot\THIRD_PARTY_NOTICES.md,THIRD_PARTY_NOTICES.md" `
     /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Xaml.dll $references `
-    (Join-Path $PSScriptRoot 'src\HidDevice.cs') (Join-Path $PSScriptRoot 'src\RapooBattery.cs') (Join-Path $PSScriptRoot 'src\LogitechBattery.cs') `
+    (Join-Path $PSScriptRoot 'src\HidDevice.cs') (Join-Path $PSScriptRoot 'src\RapooBattery.cs') (Join-Path $PSScriptRoot 'src\LogitechBattery.cs') (Join-Path $PSScriptRoot 'src\VgnBattery.cs') `
     (Join-Path $PSScriptRoot 'src\AppState.cs') (Join-Path $PSScriptRoot 'src\DesktopNative.cs') (Join-Path $PSScriptRoot 'src\App.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Application build failed.' }
 Write-Output "Built $output\PowerUI.exe"

@@ -8,6 +8,15 @@ namespace PowerUI
         {
             try
             {
+                if (args.Length == 1 && args[0] == "--vgn-battery")
+                {
+                    var keyboards = HidDevice.EnumerateSupported().FindAll(VgnBattery.IsSupported);
+                    if (keyboards.Count != 1) throw new InvalidOperationException("Expected exactly one matched VGN S99 receiver interface.");
+                    var reading = VgnBattery.Read(keyboards[0], 2000, Console.WriteLine);
+                    Console.WriteLine("Device={0} Battery={1}% Charging={2} ReadAtUtc={3:o}",
+                        reading.DeviceName, reading.Percent, reading.Charging, reading.ReadAtUtc);
+                    return 0;
+                }
                 if (args.Length == 1 && args[0] == "--logitech")
                 {
                     var logitechDevices = HidDevice.EnumerateSupported().FindAll(LogitechBattery.IsSupported);
@@ -37,11 +46,12 @@ namespace PowerUI
                         reading.ReceiverPid, reading.Percent < 0 ? "unknown" : reading.Percent + "%", reading.Charging, reading.ReadAtUtc);
                     return 0;
                 }
-                if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.Probe.exe [--listen|--query|--logitech]");
+                bool vgn = args.Length == 1 && args[0] == "--vgn";
+                if (args.Length != 0 && !vgn) throw new ArgumentException("Usage: PowerUI.Probe.exe [--listen|--query|--logitech|--vgn|--vgn-battery]");
                 var devices = HidDevice.EnumerateSupported();
                 Console.WriteLine("HID interfaces: {0}; supported vendor paths: {1}; inaccessible paths: {2}; last open error: {3}",
                     HidDevice.InterfaceCount, HidDevice.SupportedPathCount, HidDevice.InaccessibleCount, HidDevice.LastOpenError);
-                Console.WriteLine("Rapoo/Logitech HID collections: {0}", devices.Count);
+                Console.WriteLine("Selected vendor HID collections: {0}", devices.Count);
                 foreach (var device in devices)
                 {
                     var caps = device.Capabilities;

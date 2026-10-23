@@ -114,9 +114,16 @@ namespace PowerUI
 
     internal static class DeviceBattery
     {
-        internal static BatteryReading Read(int timeoutMilliseconds)
+        internal static BatteryReading Read(int timeoutMilliseconds, bool keyboard = false)
         {
             var all = HidDevice.EnumerateSupported();
+            if (keyboard)
+            {
+                var keyboards = all.Where(VgnBattery.IsSupported).ToList();
+                if (keyboards.Count != 1) throw new IOException(keyboards.Count == 0
+                    ? "No supported keyboard interface is accessible." : "Multiple S99 receivers found; refusing ambiguous selection.");
+                return VgnBattery.Read(keyboards[0], timeoutMilliseconds, null);
+            }
             var devices = all.Where(d => RapooBattery.IsSupported(d) || LogitechBattery.IsSupported(d)).ToList();
             if (devices.Count != 1) throw new IOException(devices.Count == 0
                 ? "No supported mouse interface is accessible." : "Multiple supported mouse interfaces found; refusing ambiguous selection.");

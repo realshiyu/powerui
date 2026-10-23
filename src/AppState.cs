@@ -6,10 +6,12 @@ using System.Xml.Serialization;
 namespace PowerUI
 {
     public enum BatteryColorScheme { GreenDark, GreenWhite, BlueWhite, BlackWhite, WhiteBlack }
+    public enum TrayDisplay { Separate, Mouse, Keyboard }
 
     public sealed class AppState
     {
         public BatteryColorScheme ColorScheme = BatteryColorScheme.GreenDark;
+        public TrayDisplay TrayDisplay = TrayDisplay.Separate;
         public bool Alerts = true;
         public int Threshold = 20;
         public bool Alerted;
@@ -23,11 +25,12 @@ namespace PowerUI
         public DateTime StatusAtUtc;
 
         internal static readonly string StatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PowerUI.state.xml");
+        internal static readonly string KeyboardStatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PowerUI.keyboard.state.xml");
 
-        internal static AppState Load()
+        internal static AppState Load(string path)
         {
-            if (!File.Exists(StatePath)) return new AppState();
-            using (var reader = XmlReader.Create(StatePath, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
+            if (!File.Exists(path)) return new AppState();
+            using (var reader = XmlReader.Create(path, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
             {
                 var state = (AppState)new XmlSerializer(typeof(AppState)).Deserialize(reader);
                 if (state.Threshold < 5 || state.Threshold > 90 || state.Percent < -1 || state.Percent > 100)
@@ -36,13 +39,13 @@ namespace PowerUI
             }
         }
 
-        internal void Save()
+        internal void Save(string path)
         {
-            string temporary = StatePath + ".tmp";
+            string temporary = path + ".tmp";
             using (var writer = XmlWriter.Create(temporary, new XmlWriterSettings { Indent = true }))
                 new XmlSerializer(typeof(AppState)).Serialize(writer, this);
-            if (File.Exists(StatePath)) File.Replace(temporary, StatePath, StatePath + ".bak");
-            else File.Move(temporary, StatePath);
+            if (File.Exists(path)) File.Replace(temporary, path, path + ".bak");
+            else File.Move(temporary, path);
         }
     }
 }

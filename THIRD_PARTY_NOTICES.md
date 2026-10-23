@@ -23,6 +23,11 @@ Windows 接口及材质依据 [Microsoft Learn](https://learn.microsoft.com/wind
 - [Linux HID++ 驱动](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c)（GPL-2.0-only）
 - [Solaar HID++ 2.0 实现](https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/hidpp20.py)（GPL-2.0-or-later）
 
+VGN S99 电量命令与响应字段参考 [VGN 官方 Web HUB](https://drive.vgnlab.com.cn/)
+的公开协议行为，并与 [BatteryMonitor 协议实现](https://github.com/JKWTCN/BatteryMonitor/blob/master/src/providers/hid/VgnHidProvider.cpp)
+交叉核对。本项目独立实现 Windows 传输代码，不打包官方脚本或该项目代码。
+本机接收器报告已验证百分比；充电标记尚未经真实充电转换验证。
+
 ## 商标
 
-Windows、Microsoft、雷柏 / RAPOO、罗技 / Logitech、Logi Bolt 以及产品型号均属于其各自权利人，仅用于描述系统要求与兼容性。PowerUI 是独立项目，与这些厂商没有隶属、授权或背书关系。
+Windows、Microsoft、雷柏 / RAPOO、罗技 / Logitech、Logi Bolt、VGN 以及产品型号均属于其各自权利人，仅用于描述系统要求与兼容性。PowerUI 是独立项目，与这些厂商没有隶属、授权或背书关系。

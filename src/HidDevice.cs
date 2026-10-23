@@ -65,6 +65,7 @@ namespace PowerUI
                             throw new Win32Exception();
                         string path = Marshal.PtrToStringUni(IntPtr.Add(detail, 4));
                         if (path.IndexOf("vid_24ae", StringComparison.OrdinalIgnoreCase) < 0
+                            && path.IndexOf("vid_320f", StringComparison.OrdinalIgnoreCase) < 0
                             && path.IndexOf("vid_046d", StringComparison.OrdinalIgnoreCase) < 0
                             && path.IndexOf("vid&02046d", StringComparison.OrdinalIgnoreCase) < 0
                             && path.IndexOf("vid&0002046d", StringComparison.OrdinalIgnoreCase) < 0) continue;
@@ -80,7 +81,8 @@ namespace PowerUI
                             var attributes = new HidNative.Attributes();
                             attributes.Size = Marshal.SizeOf(attributes);
                             if (!HidNative.HidD_GetAttributes(handle, ref attributes)
-                                || (attributes.VendorId != 0x24ae && attributes.VendorId != 0x046d)) continue;
+                                || (attributes.VendorId != 0x24ae && attributes.VendorId != 0x046d
+                                    && attributes.VendorId != 0x320f)) continue;
                             var device = new HidDevice();
                             device.Path = path;
                             device.VendorId = attributes.VendorId;

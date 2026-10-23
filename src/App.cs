@@ -36,6 +36,10 @@ namespace PowerUI
         private BatteryColorScheme iconColorScheme;
         private readonly IntPtr handle;
         private readonly bool? themeOverride;
+        private readonly bool keyboard;
+        private readonly string statePath;
+        private static App mouseApp, keyboardApp;
+        private static TrayDisplay trayDisplay;
         private int backdropResult;
         private bool backdropEnabled;
 
@@ -57,8 +61,14 @@ namespace PowerUI
                     var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                     bool captureMode = args.Length >= 2 && args[0] == "--capture";
                     bool? theme = args.Contains("--light") ? (bool?)false : args.Contains("--dark") ? (bool?)true : null;
-                    using (var app = new App(application, theme))
+                    using (var mouse = new App(application, theme, false))
+                    using (var keys = new App(application, theme, true))
                     {
+                        mouseApp = mouse;
+                        keyboardApp = keys;
+                        mouse.Update();
+                        keys.Update();
+                        var app = args.Contains("--keyboard") || trayDisplay == TrayDisplay.Keyboard ? keys : mouse;
                         if (captureMode)
                         {
                             if (!args.Contains("--background")) app.Show();
@@ -77,8 +87,12 @@ namespace PowerUI
                             };
                             capture.Start();
                         }
-                        else if (args.Length == 1 && args[0] == "--show") app.Show();
-                        else if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.exe [--show|--about|--capture path]");
+                        else if (args.Length >= 1 && args[0] == "--show" && args.All(a => a == "--show" || a == "--keyboard" || a == "--settings"))
+                        {
+                            app.Show();
+                            if (args.Contains("--settings")) app.ToggleSettings();
+                        }
+                        else if (args.Length != 0) throw new ArgumentException("Usage: PowerUI.exe [--show [--keyboard] [--settings]|--about|--capture path]");
                         else if (stateIsNew(app.state)) app.Show();
                         application.Run();
                     }
@@ -115,18 +129,22 @@ namespace PowerUI
                 WindowStartupLocation = WindowStartupLocation.CenterScreen, Content = tabs }.ShowDialog();
         }
 
-        private App(Application application, bool? themeOverride)
+        private App(Application application, bool? themeOverride, bool keyboard)
         {
             this.application = application;
             this.themeOverride = themeOverride;
-            try { state = AppState.Load(); }
+            this.keyboard = keyboard;
+            statePath = keyboard ? AppState.KeyboardStatePath : AppState.StatePath;
+            try { state = AppState.Load(statePath); }
             catch (Exception)
             {
                 state = new AppState();
-                string backup = AppState.StatePath + ".invalid-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
-                try { File.Copy(AppState.StatePath, backup); }
+                string backup = statePath + ".invalid-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+                try { File.Copy(statePath, backup); }
                 catch (Exception) { saveError = "设置文件损坏且无法备份，暂不保存设置"; }
             }
+            if (keyboard && !File.Exists(statePath)) state.ColorScheme = BatteryColorScheme.BlueWhite;
+            if (!keyboard) trayDisplay = state.TrayDisplay;
             using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("Shell.xaml"))
                 window = (Window)XamlReader.Load(resource);
             window.MaxHeight = SystemParameters.WorkArea.Height - 24;
@@ -154,6 +172,19 @@ namespace PowerUI
             Control<CheckBox>("Alerts").IsChecked = state.Alerts;
             Control<Slider>("Threshold").Value = state.Threshold;
             Control<CheckBox>("Startup").IsChecked = IsStartupEnabled();
+            foreach (TrayDisplay display in Enum.GetValues(typeof(TrayDisplay)))
+            {
+                var option = Control<RadioButton>("Tray" + display);
+                option.Checked += delegate(object sender, RoutedEventArgs e)
+                {
+                    if (initializing) return;
+                    trayDisplay = (TrayDisplay)Enum.Parse(typeof(TrayDisplay), ((RadioButton)sender).Tag.ToString());
+                    mouseApp.state.TrayDisplay = trayDisplay;
+                    mouseApp.Save();
+                    mouseApp.Update();
+                    keyboardApp.Update();
+                };
+            }
             foreach (BatteryColorScheme scheme in Enum.GetValues(typeof(BatteryColorScheme)))
             {
                 var option = Control<RadioButton>("Color" + scheme);
@@ -180,6 +211,8 @@ namespace PowerUI
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("打开 PowerUI", null, delegate { Show(); });
             menu.Items.Add("刷新电量", null, delegate { Refresh(); });
+            menu.Items.Add("查看鼠标", null, delegate { if (mouseApp != null) mouseApp.Show(); });
+            menu.Items.Add("查看键盘", null, delegate { if (keyboardApp != null) keyboardApp.Show(); });
             menu.Items.Add("关于 PowerUI", null, delegate { ShowAbout(); });
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { application.Shutdown(); });
@@ -208,9 +241,9 @@ namespace PowerUI
         }
 
         private T Control<T>(string name) where T : class { return (T)window.FindName(name); }
-        private string Model { get { return state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
+        private string Model { get { return keyboard ? state.DeviceName ?? "VGN S99" : state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
             : state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "无线鼠标"; } }
-        private bool Recent { get { return freshThisRun && !state.Charging && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= TimeSpan.FromMinutes(5) && state.ReadAtUtc <= DateTime.UtcNow; } }
+        private bool Recent { get { return freshThisRun && (keyboard || !state.Charging) && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= TimeSpan.FromMinutes(5) && state.ReadAtUtc <= DateTime.UtcNow; } }
         private bool ChargingRecent { get { return statusFreshThisRun && state.Charging && DateTime.UtcNow - state.StatusAtUtc <= TimeSpan.FromMinutes(5); } }
 
         private void Show()
@@ -236,7 +269,7 @@ namespace PowerUI
         {
             settingsOpen = !settingsOpen;
             Control<StackPanel>("SettingsPanel").Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            window.Height = settingsOpen ? 592 : 300;
+            window.Height = settingsOpen ? 696 : 300;
             Place();
         }
 
@@ -247,7 +280,7 @@ namespace PowerUI
             Update();
             try
             {
-                var reading = await Task.Run(() => DeviceBattery.Read(5000));
+                var reading = await Task.Run(() => DeviceBattery.Read(5000, keyboard));
                 if (disposed) return;
                 if (reading == null) readError = "暂未取得新读数";
                 else
@@ -274,6 +307,7 @@ namespace PowerUI
                     state.StatusAtUtc = reading.ReadAtUtc;
                     statusFreshThisRun = true;
                     readError = null;
+                    Control<TextBlock>("Status").ToolTip = null;
                     if (reading.Percent > state.Threshold + 5) state.Alerted = false;
                     if (state.Alerts && reading.Percent >= 0 && reading.Percent <= state.Threshold && !state.Alerted)
                     {
@@ -281,7 +315,10 @@ namespace PowerUI
                         // Persist before showing a notification so a restart cannot reissue the same alert.
                         Save();
                         if (saveError == null)
-                            tray.ShowBalloonTip(6000, "外设电量偏低", Model + " 剩余 " + reading.Percent + "%", Forms.ToolTipIcon.Warning);
+                        {
+                            var notificationTray = tray.Visible ? tray : keyboard ? mouseApp.tray : keyboardApp.tray;
+                            notificationTray.ShowBalloonTip(6000, "外设电量偏低", Model + " 剩余 " + reading.Percent + "%", Forms.ToolTipIcon.Warning);
+                        }
                         else state.Alerted = false;
                     }
                     else Save();
@@ -305,6 +342,8 @@ namespace PowerUI
             bool recent = Recent;
             string label = recent ? state.Percent.ToString() : "--";
             Control<TextBlock>("DeviceName").Text = Model;
+            Control<TextBlock>("AppTitle").Text = keyboard ? "PowerUI · 键盘" : "PowerUI · 鼠标";
+            Control<TextBlock>("DeviceGlyph").Text = keyboard ? "\uE765" : "\uE962";
             Control<TextBlock>("Connection").Text = state.ReceiverVid == 0x046d
                 ? (state.ReceiverPid == 0xb034 ? "蓝牙" : "Logi Bolt · 2.4G 无线") : "2.4G 无线";
             Control<TextBlock>("Battery").Text = label;
@@ -319,6 +358,14 @@ namespace PowerUI
                 (recent ? "更新于 " : "上次电量 " + state.Percent + "% · ") + state.ReadAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
             Control<TextBlock>("ThresholdText").Text = state.Threshold + "%";
             Control<TextBlock>("SaveStatus").Text = saveError ?? "";
+            bool wasInitializing = initializing;
+            initializing = true;
+            foreach (TrayDisplay display in Enum.GetValues(typeof(TrayDisplay)))
+                Control<RadioButton>("Tray" + display).IsChecked = display == trayDisplay;
+            Control<CheckBox>("Startup").IsChecked = IsStartupEnabled();
+            initializing = wasInitializing;
+            tray.Visible = trayDisplay == TrayDisplay.Separate
+                || (keyboard ? trayDisplay == TrayDisplay.Keyboard : trayDisplay == TrayDisplay.Mouse);
             tray.Text = Model + " · " + (ChargingRecent ? "充电中" : recent ? state.Percent + "%" : "电量未更新");
             bool taskbarDark = ReadPreference("SystemUsesLightTheme", 1) == 0;
             if (iconLabel != label || icon == null || iconDark != taskbarDark || iconColorScheme != state.ColorScheme)
@@ -427,7 +474,7 @@ namespace PowerUI
         private void Save()
         {
             if (saveError == "设置文件损坏且无法备份，暂不保存设置") return;
-            try { state.Save(); saveError = null; }
+            try { state.Save(statePath); saveError = null; }
             catch (Exception) { saveError = "无法保存设置，请将便携文件放到可写目录"; }
         }
 
@@ -484,7 +531,9 @@ namespace PowerUI
             }
             File.WriteAllText(path + ".capture.txt", "Backdrop HRESULT=" + backdropResult + "; acrylic enabled=" + backdropEnabled
                 + "; foreground capture=" + (DesktopNative.GetForegroundWindow() == handle)
-                + "; DPI=" + DesktopNative.GetDpiForWindow(handle) + "; theme=" + (dark ? "dark" : "light"));
+                + "; DPI=" + DesktopNative.GetDpiForWindow(handle) + "; theme=" + (dark ? "dark" : "light")
+                + "; tray mode=" + trayDisplay + "; mouse tray=" + mouseApp.tray.Visible + "; keyboard tray=" + keyboardApp.tray.Visible
+                + "; mouse percent=" + mouseApp.state.Percent + "; keyboard percent=" + keyboardApp.state.Percent);
         }
 
         public void Dispose()

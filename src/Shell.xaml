@@ -90,7 +90,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <Grid Margin="0,0,0,22">
-                    <TextBlock Text="PowerUI" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="AppTitle" Text="PowerUI" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="Refresh" Content="&#xE72C;" ToolTip="刷新电量" AutomationProperties.Name="刷新电量"/>
                         <Button x:Name="Settings" Content="&#xE713;" ToolTip="设置" AutomationProperties.Name="设置"/>
@@ -99,7 +99,7 @@
                 </Grid>
                 <Grid Margin="0,0,0,18">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <TextBlock Text="&#xE962;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="29" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="DeviceGlyph" Text="&#xE962;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="29" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1">
                         <TextBlock x:Name="DeviceName" Text="雷柏鼠标" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock x:Name="Connection" Text="无线连接" Foreground="{DynamicResource Muted}" Margin="0,4,0,0"/>
@@ -128,6 +128,12 @@
                         <RadioButton x:Name="ColorBlackWhite" Tag="BlackWhite" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#202020" Foreground="White" ToolTip="黑底白字" AutomationProperties.Name="黑底白字"/>
                         <RadioButton x:Name="ColorWhiteBlack" Tag="WhiteBlack" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#F5F5F5" Foreground="#181818" ToolTip="白底黑字" AutomationProperties.Name="白底黑字"/>
                     </StackPanel>
+                    <TextBlock Text="托盘显示" Margin="0,4,0,4"/>
+                    <WrapPanel Margin="0,0,0,8">
+                        <RadioButton x:Name="TraySeparate" Tag="Separate" GroupName="TrayDisplay" Content="分别显示" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
+                        <RadioButton x:Name="TrayMouse" Tag="Mouse" GroupName="TrayDisplay" Content="仅鼠标" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
+                        <RadioButton x:Name="TrayKeyboard" Tag="Keyboard" GroupName="TrayDisplay" Content="仅键盘" Foreground="{DynamicResource Ink}" Margin="0,4,0,4"/>
+                    </WrapPanel>
                     <CheckBox x:Name="Alerts" Content="低电量提醒"/>
                     <Grid Margin="0,4,0,6"><TextBlock Text="提醒阈值"/><TextBlock x:Name="ThresholdText" HorizontalAlignment="Right"/></Grid>
                     <Slider x:Name="Threshold" Minimum="5" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10" Height="24" AutomationProperties.Name="低电量提醒阈值"/>
