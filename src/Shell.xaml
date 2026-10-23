@@ -7,22 +7,6 @@
         <SolidColorBrush x:Key="Ink" Color="#202624"/>
         <SolidColorBrush x:Key="Muted" Color="#65716C"/>
         <SolidColorBrush x:Key="Track" Color="#19808080"/>
-        <Style x:Key="ColorOption" TargetType="RadioButton">
-            <Setter Property="Width" Value="54"/><Setter Property="Height" Value="42"/>
-            <Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-                <Border x:Name="Selection" BorderBrush="Transparent" BorderThickness="2" CornerRadius="6" Padding="3">
-                    <Border Background="{TemplateBinding Background}" BorderBrush="#60808080" BorderThickness="1" CornerRadius="3">
-                        <TextBlock Text="88" Foreground="{TemplateBinding Foreground}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                </Border>
-                <ControlTemplate.Triggers>
-                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="Selection" Property="BorderBrush" Value="{DynamicResource Ink}"/></Trigger>
-                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Selection" Property="Background" Value="{DynamicResource Track}"/></Trigger>
-                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Selection" Property="BorderBrush" Value="{DynamicResource Muted}"/></Trigger>
-                </ControlTemplate.Triggers>
-            </ControlTemplate></Setter.Value></Setter>
-        </Style>
         <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Ink}"/></Style>
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
@@ -120,14 +104,6 @@
                 <TextBlock x:Name="Updated" Text="尚未取得读数" Foreground="{DynamicResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/>
                 <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" Margin="0,20,0,0">
                     <Border Height="1" Background="{DynamicResource Track}" Margin="0,0,0,10"/>
-                    <TextBlock Text="托盘电量配色" Margin="0,4,0,8"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <RadioButton x:Name="ColorGreenDark" Tag="GreenDark" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#32E875" Foreground="#082212" ToolTip="亮绿底深色字（默认）" AutomationProperties.Name="亮绿底深色字"/>
-                        <RadioButton x:Name="ColorGreenWhite" Tag="GreenWhite" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#188038" Foreground="White" ToolTip="绿底白字" AutomationProperties.Name="绿底白字"/>
-                        <RadioButton x:Name="ColorBlueWhite" Tag="BlueWhite" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#005FB8" Foreground="White" ToolTip="蓝底白字" AutomationProperties.Name="蓝底白字"/>
-                        <RadioButton x:Name="ColorBlackWhite" Tag="BlackWhite" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#202020" Foreground="White" ToolTip="黑底白字" AutomationProperties.Name="黑底白字"/>
-                        <RadioButton x:Name="ColorWhiteBlack" Tag="WhiteBlack" GroupName="BatteryColor" Style="{StaticResource ColorOption}" Background="#F5F5F5" Foreground="#181818" ToolTip="白底黑字" AutomationProperties.Name="白底黑字"/>
-                    </StackPanel>
                     <TextBlock Text="托盘显示" Margin="0,4,0,4"/>
                     <WrapPanel Margin="0,0,0,8">
                         <RadioButton x:Name="TraySeparate" Tag="Separate" GroupName="TrayDisplay" Content="分别显示" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>

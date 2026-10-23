@@ -15,7 +15,6 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using MediaColor = System.Windows.Media.Color;
-using DrawingColor = System.Drawing.Color;
 
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
@@ -33,7 +32,7 @@ namespace PowerUI
         private Icon icon;
         private string iconLabel;
         private bool iconDark;
-        private BatteryColorScheme iconColorScheme;
+        private int iconSize;
         private readonly IntPtr handle;
         private readonly bool? themeOverride;
         private readonly bool keyboard;
@@ -143,7 +142,6 @@ namespace PowerUI
                 try { File.Copy(statePath, backup); }
                 catch (Exception) { saveError = "设置文件损坏且无法备份，暂不保存设置"; }
             }
-            if (keyboard && !File.Exists(statePath)) state.ColorScheme = BatteryColorScheme.BlueWhite;
             if (!keyboard) trayDisplay = state.TrayDisplay;
             using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("Shell.xaml"))
                 window = (Window)XamlReader.Load(resource);
@@ -183,18 +181,6 @@ namespace PowerUI
                     mouseApp.Save();
                     mouseApp.Update();
                     keyboardApp.Update();
-                };
-            }
-            foreach (BatteryColorScheme scheme in Enum.GetValues(typeof(BatteryColorScheme)))
-            {
-                var option = Control<RadioButton>("Color" + scheme);
-                option.IsChecked = state.ColorScheme == scheme;
-                option.Checked += delegate(object sender, RoutedEventArgs e)
-                {
-                    if (initializing) return;
-                    state.ColorScheme = (BatteryColorScheme)Enum.Parse(typeof(BatteryColorScheme), ((RadioButton)sender).Tag.ToString());
-                    Save();
-                    Update();
                 };
             }
             Control<CheckBox>("Alerts").Checked += AlertsChanged;
@@ -269,7 +255,7 @@ namespace PowerUI
         {
             settingsOpen = !settingsOpen;
             Control<StackPanel>("SettingsPanel").Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            window.Height = settingsOpen ? 696 : 300;
+            window.Height = settingsOpen ? 612 : 300;
             Place();
         }
 
@@ -368,61 +354,17 @@ namespace PowerUI
                 || (keyboard ? trayDisplay == TrayDisplay.Keyboard : trayDisplay == TrayDisplay.Mouse);
             tray.Text = Model + " · " + (ChargingRecent ? "充电中" : recent ? state.Percent + "%" : "电量未更新");
             bool taskbarDark = ReadPreference("SystemUsesLightTheme", 1) == 0;
-            if (iconLabel != label || icon == null || iconDark != taskbarDark || iconColorScheme != state.ColorScheme)
+            int size = Math.Max(16, Forms.SystemInformation.SmallIconSize.Width);
+            if (iconLabel != label || icon == null || iconDark != taskbarDark || iconSize != size)
             {
-                var next = MakeIcon(label, taskbarDark, state.ColorScheme);
+                var next = TrayIcon.Create(size, recent ? state.Percent : -1, taskbarDark,
+                    keyboard ? TrayDevice.Keyboard : TrayDevice.Mouse);
                 tray.Icon = next;
                 if (icon != null) icon.Dispose();
                 icon = next;
                 iconLabel = label;
                 iconDark = taskbarDark;
-                iconColorScheme = state.ColorScheme;
-            }
-        }
-
-        private static Icon MakeIcon(string label, bool dark, BatteryColorScheme scheme)
-        {
-            DrawingColor backgroundColor = DrawingColor.FromArgb(50, 232, 117);
-            DrawingColor inkColor = DrawingColor.FromArgb(8, 34, 18);
-            switch (scheme)
-            {
-                case BatteryColorScheme.GreenWhite: backgroundColor = DrawingColor.FromArgb(24, 128, 56); inkColor = DrawingColor.White; break;
-                case BatteryColorScheme.BlueWhite: backgroundColor = DrawingColor.FromArgb(0, 95, 184); inkColor = DrawingColor.White; break;
-                case BatteryColorScheme.BlackWhite: backgroundColor = DrawingColor.FromArgb(32, 32, 32); inkColor = DrawingColor.White; break;
-                case BatteryColorScheme.WhiteBlack: backgroundColor = DrawingColor.FromArgb(245, 245, 245); inkColor = DrawingColor.FromArgb(24, 24, 24); break;
-            }
-            if (label == "--")
-            {
-                backgroundColor = dark ? DrawingColor.FromArgb(190, 204, 194) : DrawingColor.FromArgb(217, 226, 220);
-                inkColor = DrawingColor.FromArgb(8, 34, 18);
-            }
-            using (var bitmap = new Bitmap(32, 32))
-            using (var graphics = Graphics.FromImage(bitmap))
-            using (var family = new System.Drawing.FontFamily("Segoe UI"))
-            using (var background = new SolidBrush(backgroundColor))
-            using (var ink = new SolidBrush(inkColor))
-            using (var tile = new System.Drawing.Drawing2D.GraphicsPath())
-            using (var digits = new System.Drawing.Drawing2D.GraphicsPath())
-            {
-                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                tile.AddArc(0, 0, 8, 8, 180, 90);
-                tile.AddArc(24, 0, 8, 8, 270, 90);
-                tile.AddArc(24, 24, 8, 8, 0, 90);
-                tile.AddArc(0, 24, 8, 8, 90, 90);
-                tile.CloseFigure();
-                graphics.FillPath(background, tile);
-                digits.AddString(label, family, (int)System.Drawing.FontStyle.Bold, 32, PointF.Empty, StringFormat.GenericTypographic);
-                var bounds = digits.GetBounds();
-                // Fit actual glyph bounds, avoiding font padding that wastes scarce tray pixels.
-                float scale = Math.Min(28f / bounds.Width, 26f / bounds.Height);
-                using (var transform = new System.Drawing.Drawing2D.Matrix(scale, 0, 0, scale,
-                    (32 - bounds.Width * scale) / 2 - bounds.Left * scale,
-                    (32 - bounds.Height * scale) / 2 - bounds.Top * scale))
-                    digits.Transform(transform);
-                graphics.FillPath(ink, digits);
-                IntPtr native = bitmap.GetHicon();
-                try { return (Icon)Icon.FromHandle(native).Clone(); }
-                finally { DesktopNative.DestroyIcon(native); }
+                iconSize = size;
             }
         }
 

@@ -10,6 +10,7 @@ namespace PowerUI
 
     public sealed class AppState
     {
+        // Retained for compatibility with existing settings files; ring colors follow charge level.
         public BatteryColorScheme ColorScheme = BatteryColorScheme.GreenDark;
         public TrayDisplay TrayDisplay = TrayDisplay.Separate;
         public bool Alerts = true;
