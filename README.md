@@ -1,5 +1,7 @@
 # PowerUI
 
+<img src="docs/images/app-icon.png" width="64" height="64" alt="PowerUI 程序图标">
+
 Windows 11 无线鼠标与键盘电量托盘工具。支持双设备独立监控、环状电量托盘图标和磨砂玻璃弹出面板，不需要厂商控制中心常驻。
 
 [下载便携版](https://github.com/realshiyu/powerui/releases) · [兼容设备](#兼容设备) · [构建](#从源码构建) · [报告问题](https://github.com/realshiyu/powerui/issues)
