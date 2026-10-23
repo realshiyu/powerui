@@ -1,7 +1,5 @@
 # PowerUI
 
-<img src="docs/images/app-icon.png" width="64" height="64" alt="PowerUI 鼠标电量图标">
-
 Windows 11 无线鼠标与键盘电量托盘工具。支持双设备独立监控、环状电量托盘图标和磨砂玻璃弹出面板，不需要厂商控制中心常驻。
 
 [下载便携版](https://github.com/realshiyu/powerui/releases) · [兼容设备](#兼容设备) · [构建](#从源码构建) · [报告问题](https://github.com/realshiyu/powerui/issues)
@@ -9,6 +7,10 @@ Windows 11 无线鼠标与键盘电量托盘工具。支持双设备独立监控
 <img src="docs/images/tray.png" width="32" height="32" alt="环状电量鼠标托盘图标示例">
 
 图标样式示例，圆环不代表实时电量。
+
+## 开发说明
+
+本应用由 ChatGPT / Codex 全程编写与实现，作者负责需求、设计决策和实机验收。
 
 ## 实测截图
 
