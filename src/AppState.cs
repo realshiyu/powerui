@@ -15,6 +15,7 @@ namespace PowerUI
         public TrayDisplay TrayDisplay = TrayDisplay.Separate;
         public bool Alerts = true;
         public int Threshold = 20;
+        public int QueryIntervalMinutes = 1;
         public bool Alerted;
         public int Percent = -1;
         public bool Charging;
@@ -36,6 +37,9 @@ namespace PowerUI
                 var state = (AppState)new XmlSerializer(typeof(AppState)).Deserialize(reader);
                 if (state.Threshold < 5 || state.Threshold > 90 || state.Percent < -1 || state.Percent > 100)
                     throw new InvalidDataException("Settings contain out-of-range values.");
+                if (state.QueryIntervalMinutes != 1 && state.QueryIntervalMinutes != 5
+                    && state.QueryIntervalMinutes != 10 && state.QueryIntervalMinutes != 30)
+                    state.QueryIntervalMinutes = 1;
                 return state;
             }
         }

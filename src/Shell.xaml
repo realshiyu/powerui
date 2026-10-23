@@ -110,6 +110,13 @@
                         <RadioButton x:Name="TrayMouse" Tag="Mouse" GroupName="TrayDisplay" Content="仅鼠标" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
                         <RadioButton x:Name="TrayKeyboard" Tag="Keyboard" GroupName="TrayDisplay" Content="仅键盘" Foreground="{DynamicResource Ink}" Margin="0,4,0,4"/>
                     </WrapPanel>
+                    <TextBlock Text="电量查询间隔" Margin="0,4,0,4"/>
+                    <WrapPanel Margin="0,0,0,8">
+                        <RadioButton x:Name="QueryInterval1" Tag="1" GroupName="QueryInterval" Content="1分钟" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
+                        <RadioButton x:Name="QueryInterval5" Tag="5" GroupName="QueryInterval" Content="5分钟" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
+                        <RadioButton x:Name="QueryInterval10" Tag="10" GroupName="QueryInterval" Content="10分钟" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
+                        <RadioButton x:Name="QueryInterval30" Tag="30" GroupName="QueryInterval" Content="半小时" Foreground="{DynamicResource Ink}" Margin="0,4,0,4"/>
+                    </WrapPanel>
                     <CheckBox x:Name="Alerts" Content="低电量提醒"/>
                     <Grid Margin="0,4,0,6"><TextBlock Text="提醒阈值"/><TextBlock x:Name="ThresholdText" HorizontalAlignment="Right"/></Grid>
                     <Slider x:Name="Threshold" Minimum="5" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10" Height="24" AutomationProperties.Name="低电量提醒阈值"/>

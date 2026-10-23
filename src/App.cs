@@ -37,6 +37,7 @@ namespace PowerUI
         private readonly bool? themeOverride;
         private readonly bool keyboard;
         private readonly string statePath;
+        private DateTime lastQueryAtUtc;
         private static App mouseApp, keyboardApp;
         private static TrayDisplay trayDisplay;
         private int backdropResult;
@@ -170,6 +171,21 @@ namespace PowerUI
             Control<CheckBox>("Alerts").IsChecked = state.Alerts;
             Control<Slider>("Threshold").Value = state.Threshold;
             Control<CheckBox>("Startup").IsChecked = IsStartupEnabled();
+            foreach (int minutes in new[] { 1, 5, 10, 30 })
+            {
+                var option = Control<RadioButton>("QueryInterval" + minutes);
+                option.IsChecked = state.QueryIntervalMinutes == minutes;
+                option.Checked += delegate(object sender, RoutedEventArgs e)
+                {
+                    if (initializing) return;
+                    state.QueryIntervalMinutes = int.Parse(((RadioButton)sender).Tag.ToString());
+                    refreshTimer.Stop();
+                    refreshTimer.Interval = QueryInterval;
+                    refreshTimer.Start();
+                    Save();
+                    Update();
+                };
+            }
             foreach (TrayDisplay display in Enum.GetValues(typeof(TrayDisplay)))
             {
                 var option = Control<RadioButton>("Tray" + display);
@@ -215,7 +231,7 @@ namespace PowerUI
             ApplyTheme();
             tray.Visible = true;
             SystemEvents.UserPreferenceChanged += PreferencesChanged;
-            refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+            refreshTimer = new DispatcherTimer { Interval = QueryInterval };
             refreshTimer.Tick += delegate { Refresh(); };
             refreshTimer.Start();
             statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
@@ -229,8 +245,10 @@ namespace PowerUI
         private T Control<T>(string name) where T : class { return (T)window.FindName(name); }
         private string Model { get { return keyboard ? state.DeviceName ?? "VGN S99" : state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
             : state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "无线鼠标"; } }
-        private bool Recent { get { return freshThisRun && (keyboard || !state.Charging) && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= TimeSpan.FromMinutes(5) && state.ReadAtUtc <= DateTime.UtcNow; } }
-        private bool ChargingRecent { get { return statusFreshThisRun && state.Charging && DateTime.UtcNow - state.StatusAtUtc <= TimeSpan.FromMinutes(5); } }
+        private TimeSpan QueryInterval { get { return TimeSpan.FromMinutes(state.QueryIntervalMinutes); } }
+        private TimeSpan ReadingLifetime { get { return TimeSpan.FromMinutes(Math.Max(5, state.QueryIntervalMinutes + 1)); } }
+        private bool Recent { get { return freshThisRun && (keyboard || !state.Charging) && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= ReadingLifetime && state.ReadAtUtc <= DateTime.UtcNow; } }
+        private bool ChargingRecent { get { return statusFreshThisRun && state.Charging && DateTime.UtcNow - state.StatusAtUtc <= ReadingLifetime; } }
 
         private void Show()
         {
@@ -239,7 +257,7 @@ namespace PowerUI
             window.Show();
             Place();
             window.Activate();
-            if (DateTime.UtcNow - state.ReadAtUtc > TimeSpan.FromSeconds(60)) Refresh();
+            if (DateTime.UtcNow - lastQueryAtUtc >= QueryInterval) Refresh();
         }
 
         private void Place()
@@ -255,13 +273,16 @@ namespace PowerUI
         {
             settingsOpen = !settingsOpen;
             Control<StackPanel>("SettingsPanel").Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            window.Height = settingsOpen ? 612 : 300;
+            window.Height = settingsOpen ? 672 : 300;
             Place();
         }
 
         private async void Refresh()
         {
             if (busy || disposed) return;
+            lastQueryAtUtc = DateTime.UtcNow;
+            refreshTimer.Stop();
+            refreshTimer.Start();
             busy = true;
             Update();
             try
