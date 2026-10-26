@@ -22,9 +22,9 @@ namespace PowerUI
         {
             var bitmap = new Bitmap(size, size);
             using (var graphics = Graphics.FromImage(bitmap))
-            using (var track = new Pen(dark ? Color.FromArgb(89, 93, 97) : Color.FromArgb(155, 159, 163), 2.6f))
+            using (var track = new Pen(dark ? Color.FromArgb(89, 93, 97) : Color.FromArgb(155, 159, 163), 3.6f))
             using (var charge = new Pen(percent <= 20 ? Color.FromArgb(255, 65, 69)
-                : percent <= 40 ? Color.FromArgb(255, 205, 32) : Color.FromArgb(48, 224, 65), 2.6f))
+                : percent <= 40 ? Color.FromArgb(255, 205, 32) : Color.FromArgb(48, 224, 65), 3.6f))
             using (var ink = new SolidBrush(dark ? Color.White : Color.FromArgb(24, 26, 28)))
             using (var stroke = new Pen(ink, 1.4f))
             {
