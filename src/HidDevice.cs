@@ -12,6 +12,8 @@ namespace PowerUI
         internal static int InterfaceCount, SupportedPathCount, InaccessibleCount;
         internal static int LastOpenError;
         internal string Path;
+        internal string ContainerId;
+        internal string Identity { get { return ContainerId ?? Path; } }
         internal string Product;
         internal ushort VendorId, ProductId, Version;
         internal HidNative.Caps Capabilities;
@@ -61,7 +63,9 @@ namespace PowerUI
                     try
                     {
                         Marshal.WriteInt32(detail, IntPtr.Size == 8 ? 8 : 6);
-                        if (!HidNative.SetupDiGetDeviceInterfaceDetail(set, ref info, detail, size, out size, IntPtr.Zero))
+                        var deviceInfo = new HidNative.DeviceInfoData();
+                        deviceInfo.Size = Marshal.SizeOf(deviceInfo);
+                        if (!HidNative.SetupDiGetDeviceInterfaceDetail(set, ref info, detail, size, out size, ref deviceInfo))
                             throw new Win32Exception();
                         string path = Marshal.PtrToStringUni(IntPtr.Add(detail, 4));
                         if (path.IndexOf("vid_24ae", StringComparison.OrdinalIgnoreCase) < 0
@@ -85,6 +89,15 @@ namespace PowerUI
                                     && attributes.VendorId != 0x320f)) continue;
                             var device = new HidDevice();
                             device.Path = path;
+                            var containerKey = new HidNative.PropertyKey { FormatId = new Guid("8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c"), PropertyId = 2 };
+                            uint propertyType, required;
+                            var container = new byte[16];
+                            if (HidNative.SetupDiGetDeviceProperty(set, ref deviceInfo, ref containerKey, out propertyType,
+                                container, container.Length, out required, 0) && propertyType == 13 && required == 16)
+                            {
+                                var id = new Guid(container);
+                                if (id != Guid.Empty) device.ContainerId = id.ToString();
+                            }
                             device.VendorId = attributes.VendorId;
                             device.ProductId = attributes.ProductId;
                             device.Version = attributes.Version;
@@ -119,6 +132,10 @@ namespace PowerUI
         [StructLayout(LayoutKind.Sequential)]
         internal struct InterfaceData { internal int Size; internal Guid Guid; internal int Flags; internal UIntPtr Reserved; }
         [StructLayout(LayoutKind.Sequential)]
+        internal struct DeviceInfoData { internal int Size; internal Guid ClassGuid; internal uint DevInst; internal UIntPtr Reserved; }
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct PropertyKey { internal Guid FormatId; internal uint PropertyId; }
+        [StructLayout(LayoutKind.Sequential)]
         internal struct Attributes { internal int Size; internal ushort VendorId, ProductId, Version; }
         [StructLayout(LayoutKind.Sequential)]
         internal struct Caps
@@ -144,6 +161,11 @@ namespace PowerUI
         internal static extern bool SetupDiEnumDeviceInterfaces(IntPtr set, IntPtr device, ref Guid guid, uint index, ref InterfaceData data);
         [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr set, ref InterfaceData data, IntPtr detail, uint size, out uint required, IntPtr device);
+        [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr set, ref InterfaceData data, IntPtr detail, uint size, out uint required, ref DeviceInfoData device);
+        [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern bool SetupDiGetDeviceProperty(IntPtr set, ref DeviceInfoData device, ref PropertyKey key, out uint type,
+            byte[] buffer, int size, out uint required, uint flags);
         [DllImport("setupapi.dll", SetLastError = true)] internal static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);

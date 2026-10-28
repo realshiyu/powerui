@@ -23,6 +23,7 @@ namespace PowerUI
         public ushort ReceiverVid;
         public byte DeviceIndex;
         public string DeviceName;
+        public string DeviceId;
         public DateTime ReadAtUtc;
         public DateTime StatusAtUtc;
 

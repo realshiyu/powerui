@@ -25,7 +25,7 @@ namespace PowerUI
         private readonly Application application;
         private readonly Window window;
         private readonly Forms.NotifyIcon tray;
-        private readonly DispatcherTimer refreshTimer, statusTimer;
+        private readonly DispatcherTimer refreshTimer, statusTimer, deviceTimer;
         private AppState state;
         private bool busy, disposed, settingsOpen, freshThisRun, statusFreshThisRun, dark, initializing = true;
         private string readError, saveError;
@@ -42,6 +42,7 @@ namespace PowerUI
         private static TrayDisplay trayDisplay;
         private int backdropResult;
         private bool backdropEnabled;
+        private bool mouseDeviceDetected, refreshPending;
 
         [STAThread]
         private static int Main(string[] args)
@@ -235,15 +236,22 @@ namespace PowerUI
             refreshTimer.Tick += delegate { Refresh(); };
             refreshTimer.Start();
             statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-            statusTimer.Tick += delegate { Update(); };
+            statusTimer.Tick += delegate
+            {
+                Update();
+                if (!keyboard && !statusFreshThisRun && DateTime.UtcNow - lastQueryAtUtc >= TimeSpan.FromSeconds(10)) Refresh();
+            };
             statusTimer.Start();
+            deviceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            deviceTimer.Tick += delegate { deviceTimer.Stop(); Refresh(true); };
+            source.AddHook(DeviceChanged);
             initializing = false;
             Update();
             Refresh();
         }
 
         private T Control<T>(string name) where T : class { return (T)window.FindName(name); }
-        private string Model { get { return keyboard ? state.DeviceName ?? "VGN S99" : state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
+        private string Model { get { return keyboard ? state.DeviceName ?? "VGN S99" : !mouseDeviceDetected ? "等待活动鼠标" : state.ReceiverVid == 0x046d ? state.DeviceName ?? "罗技鼠标"
             : state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "无线鼠标"; } }
         private TimeSpan QueryInterval { get { return TimeSpan.FromMinutes(state.QueryIntervalMinutes); } }
         private TimeSpan ReadingLifetime { get { return TimeSpan.FromMinutes(Math.Max(5, state.QueryIntervalMinutes + 1)); } }
@@ -277,9 +285,20 @@ namespace PowerUI
             Place();
         }
 
-        private async void Refresh()
+        private IntPtr DeviceChanged(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
-            if (busy || disposed) return;
+            if (message == 0x0219 && !disposed && (wParam.ToInt64() == 7 || wParam.ToInt64() == 0x8000 || wParam.ToInt64() == 0x8004))
+            {
+                deviceTimer.Stop();
+                deviceTimer.Start();
+            }
+            return IntPtr.Zero;
+        }
+
+        private async void Refresh(bool deviceChanged = false)
+        {
+            if (disposed) return;
+            if (busy) { refreshPending |= deviceChanged; return; }
             lastQueryAtUtc = DateTime.UtcNow;
             refreshTimer.Stop();
             refreshTimer.Start();
@@ -287,18 +306,28 @@ namespace PowerUI
             Update();
             try
             {
-                var reading = await Task.Run(() => DeviceBattery.Read(5000, keyboard));
+                string preferredId = state.DeviceId;
+                ushort preferredVid = state.ReceiverVid, preferredPid = state.ReceiverPid;
+                byte preferredIndex = state.DeviceIndex;
+                var reading = await Task.Run(() => DeviceBattery.Read(5000, keyboard, preferredId, preferredVid, preferredPid, preferredIndex));
                 if (disposed) return;
-                if (reading == null) readError = "暂未取得新读数";
+                if (reading == null)
+                {
+                    freshThisRun = statusFreshThisRun = false;
+                    mouseDeviceDetected = false;
+                    readError = "暂未取得活动设备读数";
+                }
                 else
                 {
                     ushort previousVid = state.ReceiverVid == 0 && state.ReceiverPid != 0 ? (ushort)0x24ae : state.ReceiverVid;
-                    if (previousVid != reading.ReceiverVid || state.ReceiverPid != reading.ReceiverPid || state.DeviceIndex != reading.DeviceIndex)
+                    if (previousVid != reading.ReceiverVid || state.ReceiverPid != reading.ReceiverPid || state.DeviceIndex != reading.DeviceIndex
+                        || (state.DeviceId != null && state.DeviceId != reading.DeviceId))
                     {
                         state.Alerted = false;
                         state.Percent = -1;
                         state.ReadAtUtc = default(DateTime);
                         freshThisRun = false;
+                        statusFreshThisRun = false;
                     }
                     if (reading.Percent >= 0)
                     {
@@ -311,9 +340,12 @@ namespace PowerUI
                     state.ReceiverVid = reading.ReceiverVid;
                     state.DeviceIndex = reading.DeviceIndex;
                     state.DeviceName = reading.DeviceName;
-                    state.StatusAtUtc = reading.ReadAtUtc;
-                    statusFreshThisRun = true;
-                    readError = null;
+                    state.DeviceId = reading.DeviceId;
+                    if (reading.HasStatus) state.StatusAtUtc = reading.ReadAtUtc;
+                    statusFreshThisRun = reading.HasStatus;
+                    if (!reading.HasStatus) freshThisRun = false;
+                    mouseDeviceDetected = true;
+                    readError = reading.HasStatus ? null : "设备已识别，等待电量报告";
                     Control<TextBlock>("Status").ToolTip = null;
                     if (reading.Percent > state.Threshold + 5) state.Alerted = false;
                     if (state.Alerts && reading.Percent >= 0 && reading.Percent <= state.Threshold && !state.Alerted)
@@ -333,13 +365,19 @@ namespace PowerUI
             }
             catch (Exception error)
             {
+                freshThisRun = statusFreshThisRun = false;
+                mouseDeviceDetected = false;
                 readError = "暂未取得新读数";
                 Control<TextBlock>("Status").ToolTip = error.GetBaseException().Message;
             }
             finally
             {
                 busy = false;
-                if (!disposed) Update();
+                if (!disposed)
+                {
+                    Update();
+                    if (refreshPending) { refreshPending = false; Refresh(); }
+                }
             }
         }
 
@@ -504,6 +542,9 @@ namespace PowerUI
             disposed = true;
             refreshTimer.Stop();
             statusTimer.Stop();
+            deviceTimer.Stop();
+            var source = HwndSource.FromHwnd(handle);
+            if (source != null) source.RemoveHook(DeviceChanged);
             SystemEvents.UserPreferenceChanged -= PreferencesChanged;
             tray.Visible = false;
             tray.ContextMenuStrip.Dispose();

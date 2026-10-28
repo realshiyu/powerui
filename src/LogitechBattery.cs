@@ -18,13 +18,14 @@ namespace PowerUI
                 && device.Capabilities.InputLength == 20 && device.Capabilities.OutputLength == 20;
         }
 
-        internal static BatteryReading Read(HidDevice device, int timeoutMilliseconds, Action<string> trace)
+        internal static BatteryReading Read(HidDevice device, int timeoutMilliseconds, Action<string> trace, byte preferredIndex = 0)
         {
             var clock = Stopwatch.StartNew();
             BatteryReading result = null;
             bool bluetooth = device.ProductId == 0xb034;
             // Direct Bluetooth uses index FF; Bolt routes devices through paired slots 1..6.
             byte[] slots = bluetooth ? new byte[] { 0xff } : new byte[] { 1, 2, 3, 4, 5, 6 };
+            slots = slots.OrderByDescending(slot => slot == preferredIndex).ToArray();
             string transport = bluetooth ? "Bluetooth" : "Bolt";
             foreach (byte slot in slots)
             {
@@ -58,10 +59,10 @@ namespace PowerUI
                             byte[] status = query(batteryFeature, 0x10, new byte[0]);
                             if (trace != null) trace(string.Format("Unified Battery feature={0:X2}; percent={1}; charging status={2}", batteryFeature, status[4], status[6]));
                             if (status[4] > 100 || status[6] > 3) throw new IOException("Invalid battery percentage or charging status.");
-                            if (result != null) throw new IOException("Multiple MX Master 3S devices found; refusing ambiguous selection.");
                             result = new BatteryReading { Percent = status[4], Charging = status[6] == 1 || status[6] == 2,
                                 ReadAtUtc = DateTime.UtcNow, ReceiverPid = device.ProductId, ReceiverVid = device.VendorId,
-                                DeviceName = name, DeviceIndex = slot };
+                                DeviceName = name, DeviceIndex = slot, DeviceId = device.Identity };
+                            return result;
                         }
                         catch (TimeoutException)
                         {
@@ -114,7 +115,8 @@ namespace PowerUI
 
     internal static class DeviceBattery
     {
-        internal static BatteryReading Read(int timeoutMilliseconds, bool keyboard = false)
+        internal static BatteryReading Read(int timeoutMilliseconds, bool keyboard = false, string preferredId = null,
+            ushort preferredVid = 0, ushort preferredPid = 0, byte preferredIndex = 0, Action<string> trace = null)
         {
             var all = HidDevice.EnumerateSupported();
             if (keyboard)
@@ -125,10 +127,34 @@ namespace PowerUI
                 return VgnBattery.Read(keyboards[0], timeoutMilliseconds, null);
             }
             var devices = all.Where(d => RapooBattery.IsSupported(d) || LogitechBattery.IsSupported(d)).ToList();
-            if (devices.Count != 1) throw new IOException(devices.Count == 0
-                ? "No supported mouse interface is accessible." : "Multiple supported mouse interfaces found; refusing ambiguous selection.");
-            return LogitechBattery.IsSupported(devices[0]) ? LogitechBattery.Read(devices[0], timeoutMilliseconds, null)
-                : RapooBattery.Read(timeoutMilliseconds, false);
+            if (devices.Count == 0) throw new IOException("No supported mouse interface is accessible.");
+            devices = devices.OrderByDescending(d => preferredId != null && d.Identity == preferredId)
+                .ThenByDescending(d => d.VendorId == preferredVid && d.ProductId == preferredPid).ToList();
+            // Give each endpoint its own bounded read so an idle receiver cannot starve another mouse.
+            var pending = devices.Select(device => Task.Run(() =>
+            {
+                try
+                {
+                    var reading = LogitechBattery.IsSupported(device)
+                        ? LogitechBattery.Read(device, timeoutMilliseconds, trace, preferredIndex)
+                        : RapooBattery.Read(device, all, timeoutMilliseconds, false);
+                    if (trace != null) trace(string.Format("Mouse endpoint {0:X4}:{1:X4}: {2}", device.VendorId, device.ProductId,
+                        reading == null ? "no valid battery response" : "valid battery response"));
+                    return reading;
+                }
+                catch (Exception error)
+                {
+                    if (trace != null) trace(string.Format("Mouse endpoint {0:X4}:{1:X4}: {2}", device.VendorId, device.ProductId, error.GetBaseException().Message));
+                    return null;
+                }
+            })).ToArray();
+            Task.WaitAll(pending);
+            var selected = pending.Select(task => task.Result).FirstOrDefault(reading => reading != null);
+            if (selected != null) return selected;
+            // Receiver detection identifies the model, but never invents a fresh battery/status reading.
+            var detected = devices.FirstOrDefault(RapooBattery.IsSupported);
+            return detected == null ? null : new BatteryReading { Percent = -1, HasStatus = false,
+                ReceiverVid = detected.VendorId, ReceiverPid = detected.ProductId, DeviceId = detected.Identity };
         }
     }
 }

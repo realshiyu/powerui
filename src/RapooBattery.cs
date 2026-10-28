@@ -15,6 +15,8 @@ namespace PowerUI
         internal ushort ReceiverVid;
         internal byte DeviceIndex;
         internal string DeviceName;
+        internal string DeviceId;
+        internal bool HasStatus = true;
     }
 
     internal static class RapooBattery
@@ -38,8 +40,12 @@ namespace PowerUI
             var devices = all.Where(IsSupported).ToList();
             if (devices.Count == 0) throw new IOException("No supported Rapoo mouse receiver interface is accessible.");
             if (devices.Count != 1) throw new IOException("Multiple supported receivers found; refusing ambiguous selection.");
-            var device = devices[0];
-            var inputs = all.Where(d => d.ProductId == device.ProductId && d.Capabilities.UsagePage == 0xff00
+            return Read(devices[0], all, timeoutMilliseconds, request);
+        }
+
+        internal static BatteryReading Read(HidDevice device, System.Collections.Generic.List<HidDevice> all, int timeoutMilliseconds, bool request)
+        {
+            var inputs = all.Where(d => SameReceiver(d, device) && d.Capabilities.UsagePage == 0xff00
                 && d.Capabilities.Usage == 2 && d.InputReportIds == "7" && d.Capabilities.InputLength >= 9).ToList();
             if (inputs.Count != 1) throw new IOException("Cannot unambiguously select battery input report 7 interface.");
             var input = inputs[0];
@@ -53,7 +59,7 @@ namespace PowerUI
                     {
                         if (request)
                         {
-                            var features = all.Where(d => d.ProductId == device.ProductId && d.Capabilities.UsagePage == 0xff00
+                            var features = all.Where(d => SameReceiver(d, device) && d.Capabilities.UsagePage == 0xff00
                                 && d.Capabilities.Usage == 0x000f && d.FeatureReportIds == "8" && d.Capabilities.FeatureLength == 33).ToList();
                             if (features.Count != 1) throw new IOException("Cannot unambiguously select feature report 8 interface.");
                             FirmwareAck = SendQuery(device, features[0], 0xa3, 0);
@@ -64,6 +70,7 @@ namespace PowerUI
                             var reading = task.GetAwaiter().GetResult();
                             reading.ReceiverPid = device.ProductId;
                             reading.ReceiverVid = device.VendorId;
+                            reading.DeviceId = device.Identity;
                             return reading;
                         }
                         return null;
@@ -75,6 +82,12 @@ namespace PowerUI
                     }
                 }
             }
+        }
+
+        private static bool SameReceiver(HidDevice candidate, HidDevice device)
+        {
+            return candidate.VendorId == device.VendorId && candidate.ProductId == device.ProductId
+                && (device.ContainerId == null || candidate.ContainerId == device.ContainerId);
         }
 
         private static int SendQuery(HidDevice device, HidDevice feature, byte command, params byte[] arguments)

@@ -8,6 +8,16 @@ namespace PowerUI
         {
             try
             {
+                if (args.Length == 1 && args[0] == "--mouse")
+                {
+                    Console.WriteLine("Auto-selecting a supported mouse using read-only battery responses; no settings changed.");
+                    var reading = DeviceBattery.Read(5000, trace: Console.WriteLine);
+                    if (reading == null) { Console.WriteLine("No supported mouse returned a valid battery response."); return 4; }
+                    Console.WriteLine("Selected={0:X4}:{1:X4} Device={2} DeviceIndex={3} Battery={4} Charging={5} HasStatus={6}",
+                        reading.ReceiverVid, reading.ReceiverPid, reading.DeviceName ?? "Rapoo mouse", reading.DeviceIndex,
+                        reading.Percent < 0 ? "unknown" : reading.Percent + "%", reading.Charging, reading.HasStatus);
+                    return reading.HasStatus ? 0 : 4;
+                }
                 if (args.Length == 1 && args[0] == "--vgn-battery")
                 {
                     var keyboards = HidDevice.EnumerateSupported().FindAll(VgnBattery.IsSupported);
@@ -47,7 +57,7 @@ namespace PowerUI
                     return 0;
                 }
                 bool vgn = args.Length == 1 && args[0] == "--vgn";
-                if (args.Length != 0 && !vgn) throw new ArgumentException("Usage: PowerUI.Probe.exe [--listen|--query|--logitech|--vgn|--vgn-battery]");
+                if (args.Length != 0 && !vgn) throw new ArgumentException("Usage: PowerUI.Probe.exe [--mouse|--listen|--query|--logitech|--vgn|--vgn-battery]");
                 var devices = HidDevice.EnumerateSupported();
                 Console.WriteLine("HID interfaces: {0}; supported vendor paths: {1}; inaccessible paths: {2}; last open error: {3}",
                     HidDevice.InterfaceCount, HidDevice.SupportedPathCount, HidDevice.InaccessibleCount, HidDevice.LastOpenError);
