@@ -16,6 +16,8 @@ namespace PowerUI
         public bool Alerts = true;
         public int Threshold = 20;
         public int QueryIntervalMinutes = 1;
+        public bool SkipIdleQueries = true;
+        public int IdleMinutes = 10;
         public bool Alerted;
         public int Percent = -1;
         public bool Charging;
@@ -41,6 +43,7 @@ namespace PowerUI
                 if (state.QueryIntervalMinutes != 1 && state.QueryIntervalMinutes != 5
                     && state.QueryIntervalMinutes != 10 && state.QueryIntervalMinutes != 30)
                     state.QueryIntervalMinutes = 1;
+                if (state.IdleMinutes < 1 || state.IdleMinutes > 60) state.IdleMinutes = 10;
                 return state;
             }
         }

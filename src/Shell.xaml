@@ -117,6 +117,9 @@
                         <RadioButton x:Name="QueryInterval10" Tag="10" GroupName="QueryInterval" Content="10分钟" Foreground="{DynamicResource Ink}" Margin="0,4,14,4"/>
                         <RadioButton x:Name="QueryInterval30" Tag="30" GroupName="QueryInterval" Content="半小时" Foreground="{DynamicResource Ink}" Margin="0,4,0,4"/>
                     </WrapPanel>
+                    <CheckBox x:Name="SkipIdleQueries" Content="空闲时跳过主动查询"/>
+                    <Grid Margin="0,4,0,6"><TextBlock Text="空闲时长"/><TextBlock x:Name="IdleMinutesText" HorizontalAlignment="Right"/></Grid>
+                    <Slider x:Name="IdleMinutes" Minimum="1" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="5" Height="24" AutomationProperties.Name="跳过主动查询的空闲时长"/>
                     <CheckBox x:Name="Alerts" Content="低电量提醒"/>
                     <Grid Margin="0,4,0,6"><TextBlock Text="提醒阈值"/><TextBlock x:Name="ThresholdText" HorizontalAlignment="Right"/></Grid>
                     <Slider x:Name="Threshold" Minimum="5" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10" Height="24" AutomationProperties.Name="低电量提醒阈值"/>

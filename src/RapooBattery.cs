@@ -17,12 +17,13 @@ namespace PowerUI
         internal string DeviceName;
         internal string DeviceId;
         internal bool HasStatus = true;
+        internal bool QuerySkipped;
     }
 
     internal static class RapooBattery
     {
         internal static int Reports, BatteryReports, LastStatus = -1, LastBattery = -1;
-        internal static int FirmwareAck = -1, BatteryAck = -1;
+        internal static int ReceiverAck = -1, FirmwareAck = -1, BatteryAck = -1;
         // Official VT_nrf54L mapping; never send mouse reports to the P5 PLUS base (4827).
         internal static bool IsSupported(HidDevice device)
         {
@@ -31,19 +32,19 @@ namespace PowerUI
                 && device.OutputReportIds == "6" && device.Capabilities.OutputLength == 33;
         }
 
-        internal static BatteryReading Read(int timeoutMilliseconds, bool request)
+        internal static BatteryReading Read(int timeoutMilliseconds, bool request, Action<string> trace = null)
         {
             Reports = BatteryReports = 0;
             LastStatus = LastBattery = -1;
-            FirmwareAck = BatteryAck = -1;
+            ReceiverAck = FirmwareAck = BatteryAck = -1;
             var all = HidDevice.EnumerateSupported();
             var devices = all.Where(IsSupported).ToList();
             if (devices.Count == 0) throw new IOException("No supported Rapoo mouse receiver interface is accessible.");
             if (devices.Count != 1) throw new IOException("Multiple supported receivers found; refusing ambiguous selection.");
-            return Read(devices[0], all, timeoutMilliseconds, request);
+            return Read(devices[0], all, timeoutMilliseconds, request, trace);
         }
 
-        internal static BatteryReading Read(HidDevice device, System.Collections.Generic.List<HidDevice> all, int timeoutMilliseconds, bool request)
+        internal static BatteryReading Read(HidDevice device, System.Collections.Generic.List<HidDevice> all, int timeoutMilliseconds, bool request, Action<string> trace = null)
         {
             var inputs = all.Where(d => SameReceiver(d, device) && d.Capabilities.UsagePage == 0xff00
                 && d.Capabilities.Usage == 2 && d.InputReportIds == "7" && d.Capabilities.InputLength >= 9).ToList();
@@ -54,7 +55,7 @@ namespace PowerUI
                 if (handle.IsInvalid) throw new System.ComponentModel.Win32Exception();
                 using (var stream = new FileStream(handle, FileAccess.Read, input.Capabilities.InputLength, true))
                 {
-                    var task = ReadBattery(stream, input.Capabilities.InputLength);
+                    var task = ReadBattery(stream, input.Capabilities.InputLength, trace);
                     try
                     {
                         if (request)
@@ -62,8 +63,9 @@ namespace PowerUI
                             var features = all.Where(d => SameReceiver(d, device) && d.Capabilities.UsagePage == 0xff00
                                 && d.Capabilities.Usage == 0x000f && d.FeatureReportIds == "8" && d.Capabilities.FeatureLength == 33).ToList();
                             if (features.Count != 1) throw new IOException("Cannot unambiguously select feature report 8 interface.");
-                            FirmwareAck = SendQuery(device, features[0], 0xa3, 0);
-                            BatteryAck = SendQuery(device, features[0], 0xaa);
+                            ReceiverAck = SendQuery(device, features[0], trace, 0xb0, 0);
+                            FirmwareAck = SendQuery(device, features[0], trace, 0xa3, 0);
+                            BatteryAck = SendQuery(device, features[0], trace, 0xaa);
                         }
                         if (task.Wait(timeoutMilliseconds))
                         {
@@ -90,7 +92,7 @@ namespace PowerUI
                 && (device.ContainerId == null || candidate.ContainerId == device.ContainerId);
         }
 
-        private static int SendQuery(HidDevice device, HidDevice feature, byte command, params byte[] arguments)
+        private static int SendQuery(HidDevice device, HidDevice feature, Action<string> trace, byte command, params byte[] arguments)
         {
             using (var handle = HidNative.CreateFile(device.Path, 0x40000000, 3, IntPtr.Zero, 3, 0x40000000, IntPtr.Zero))
             {
@@ -100,9 +102,10 @@ namespace PowerUI
                     // Only official read-firmware/read-battery queries are used by this class.
                     var report = new byte[33];
                     report[0] = 6;
-                    report[1] = 0xa5;
-                    report[2] = command;
-                    Array.Copy(arguments, 0, report, 3, arguments.Length);
+                    int offset = command == 0xb0 ? 1 : 2;
+                    if (offset == 2) report[1] = 0xa5;
+                    report[offset] = command;
+                    Array.Copy(arguments, 0, report, offset + 1, arguments.Length);
                     var write = stream.WriteAsync(report, 0, report.Length);
                     if (!write.Wait(1500))
                     {
@@ -122,14 +125,16 @@ namespace PowerUI
                     var response = new byte[33];
                     response[0] = 8;
                     if (!HidNative.HidD_GetFeature(handle, response, response.Length)) throw new System.ComponentModel.Win32Exception();
-                    if (response[1] != 2) return response[1];
+                    // This receiver returns ACK at byte 0, replacing the requested feature report ID.
+                    if (trace != null) trace(string.Format("Query {0:X2}: ACK={1}", command, response[0]));
+                    if (response[0] != 2) return response[0];
                     Thread.Sleep(100);
                 }
             }
             return 2;
         }
 
-        private static async Task<BatteryReading> ReadBattery(FileStream stream, int reportLength)
+        private static async Task<BatteryReading> ReadBattery(FileStream stream, int reportLength, Action<string> trace)
         {
             var buffer = new byte[reportLength];
             while (true)
@@ -142,6 +147,7 @@ namespace PowerUI
                     BatteryReports++;
                     LastStatus = buffer[7];
                     LastBattery = buffer[8];
+                    if (trace != null) trace(string.Format("Battery report: status={0}; battery field={1}", LastStatus, LastBattery));
                 }
                 // Native HID includes the report ID; WebHID event.data does not.
                 if (length < 9 || buffer[0] != 7 || (buffer[7] != 1 && buffer[7] != 2)) continue;

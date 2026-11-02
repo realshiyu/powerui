@@ -39,10 +39,11 @@ namespace PowerUI
         private readonly string statePath;
         private DateTime lastQueryAtUtc;
         private static App mouseApp, keyboardApp;
+        private static DeviceActivity activity;
         private static TrayDisplay trayDisplay;
         private int backdropResult;
         private bool backdropEnabled;
-        private bool mouseDeviceDetected, refreshPending;
+        private bool mouseDeviceDetected, refreshPending, querySkipped;
 
         [STAThread]
         private static int Main(string[] args)
@@ -74,7 +75,11 @@ namespace PowerUI
                         {
                             if (!args.Contains("--background")) app.Show();
                             if (args.Contains("--settings")) app.ToggleSettings();
-                            var capture = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+                            int captureSeconds = 8;
+                            int delayIndex = Array.IndexOf(args, "--capture-seconds");
+                            if (delayIndex >= 0 && (delayIndex + 1 >= args.Length || !int.TryParse(args[delayIndex + 1], out captureSeconds)
+                                || captureSeconds < 1 || captureSeconds > 900)) throw new ArgumentException("Capture delay must be 1..900 seconds.");
+                            var capture = new DispatcherTimer { Interval = TimeSpan.FromSeconds(captureSeconds) };
                             capture.Tick += delegate
                             {
                                 capture.Stop();
@@ -150,6 +155,7 @@ namespace PowerUI
             window.MaxHeight = SystemParameters.WorkArea.Height - 24;
             handle = new WindowInteropHelper(window).EnsureHandle();
             var source = HwndSource.FromHwnd(handle);
+            if (!keyboard) activity = new DeviceActivity(handle);
             source.CompositionTarget.BackgroundColor = Colors.Transparent;
             var margins = new DesktopNative.Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
             DesktopNative.DwmExtendFrameIntoClientArea(handle, ref margins);
@@ -171,6 +177,8 @@ namespace PowerUI
             Control<Button>("Exit").Click += delegate { application.Shutdown(); };
             Control<CheckBox>("Alerts").IsChecked = state.Alerts;
             Control<Slider>("Threshold").Value = state.Threshold;
+            Control<CheckBox>("SkipIdleQueries").IsChecked = state.SkipIdleQueries;
+            Control<Slider>("IdleMinutes").Value = state.IdleMinutes;
             Control<CheckBox>("Startup").IsChecked = IsStartupEnabled();
             foreach (int minutes in new[] { 1, 5, 10, 30 })
             {
@@ -202,6 +210,9 @@ namespace PowerUI
             }
             Control<CheckBox>("Alerts").Checked += AlertsChanged;
             Control<CheckBox>("Alerts").Unchecked += AlertsChanged;
+            Control<CheckBox>("SkipIdleQueries").Checked += IdleSettingsChanged;
+            Control<CheckBox>("SkipIdleQueries").Unchecked += IdleSettingsChanged;
+            Control<Slider>("IdleMinutes").ValueChanged += IdleSettingsChanged;
             Control<Slider>("Threshold").ValueChanged += delegate
             {
                 if (initializing) return;
@@ -239,7 +250,7 @@ namespace PowerUI
             statusTimer.Tick += delegate
             {
                 Update();
-                if (!keyboard && !statusFreshThisRun && DateTime.UtcNow - lastQueryAtUtc >= TimeSpan.FromSeconds(10)) Refresh();
+                if (!keyboard && !querySkipped && !statusFreshThisRun && DateTime.UtcNow - lastQueryAtUtc >= TimeSpan.FromSeconds(10)) Refresh();
             };
             statusTimer.Start();
             deviceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -281,12 +292,25 @@ namespace PowerUI
         {
             settingsOpen = !settingsOpen;
             Control<StackPanel>("SettingsPanel").Visibility = settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            window.Height = settingsOpen ? 672 : 300;
+            window.Height = settingsOpen ? 784 : 300;
             Place();
         }
 
         private IntPtr DeviceChanged(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            if (!keyboard && !disposed && message == 0x00ff)
+            {
+                int kind = activity.RecordInput(lParam);
+                var monitor = kind == 0 ? mouseApp : kind == 1 ? keyboardApp : null;
+                if (monitor != null && monitor.querySkipped && !monitor.busy) monitor.Refresh();
+            }
+            if (!keyboard && !disposed && ((message == 0x00fe)
+                || (message == 0x0218 && (wParam.ToInt64() == 7 || wParam.ToInt64() == 0x12))))
+            {
+                activity.ForgetInputs();
+                deviceTimer.Stop();
+                deviceTimer.Start();
+            }
             if (message == 0x0219 && !disposed && (wParam.ToInt64() == 7 || wParam.ToInt64() == 0x8000 || wParam.ToInt64() == 0x8004))
             {
                 deviceTimer.Stop();
@@ -300,6 +324,7 @@ namespace PowerUI
             if (disposed) return;
             if (busy) { refreshPending |= deviceChanged; return; }
             lastQueryAtUtc = DateTime.UtcNow;
+            querySkipped = false;
             refreshTimer.Stop();
             refreshTimer.Start();
             busy = true;
@@ -309,9 +334,21 @@ namespace PowerUI
                 string preferredId = state.DeviceId;
                 ushort preferredVid = state.ReceiverVid, preferredPid = state.ReceiverPid;
                 byte preferredIndex = state.DeviceIndex;
-                var reading = await Task.Run(() => DeviceBattery.Read(5000, keyboard, preferredId, preferredVid, preferredPid, preferredIndex));
+                bool skipIdle = state.SkipIdleQueries;
+                int idleMinutes = state.IdleMinutes;
+                var reading = await Task.Run(() => DeviceBattery.Read(5000, keyboard, preferredId, preferredVid, preferredPid, preferredIndex,
+                    canQuery: device => !skipIdle || activity.CanQuery(device, keyboard, idleMinutes), updateDevices: activity.UpdateDevices));
                 if (disposed) return;
-                if (reading == null)
+                if (reading != null && reading.QuerySkipped)
+                {
+                    querySkipped = true;
+                    freshThisRun = statusFreshThisRun = false;
+                    if (!keyboard && state.DeviceId == reading.DeviceId && state.ReceiverVid == reading.ReceiverVid
+                        && state.ReceiverPid == reading.ReceiverPid) mouseDeviceDetected = true;
+                    readError = "无近期设备输入，已跳过查询";
+                    Control<TextBlock>("Status").ToolTip = activity.Error;
+                }
+                else if (reading == null)
                 {
                     freshThisRun = statusFreshThisRun = false;
                     mouseDeviceDetected = false;
@@ -398,10 +435,13 @@ namespace PowerUI
             Control<Border>("BatteryFill").Width = recent ? Math.Max(0, Control<Grid>("BatteryTrack").ActualWidth * state.Percent / 100.0) : 0;
             Control<Border>("BatteryFill").Background = new SolidColorBrush(recent && state.Percent <= state.Threshold
                 ? MediaColor.FromRgb(218, 122, 39) : MediaColor.FromRgb(21, 159, 124));
-            Control<TextBlock>("Status").Text = busy ? "正在读取…" : ChargingRecent ? "充电中" : recent ? readError ?? "已更新" : readError ?? "等待电量";
+            Control<TextBlock>("Status").Text = busy ? "正在读取…" : querySkipped ? readError : ChargingRecent ? "充电中" : recent ? readError ?? "已更新" : readError ?? "等待电量";
             Control<TextBlock>("Updated").Text = state.Percent < 0 ? "尚未取得读数" :
                 (recent ? "更新于 " : "上次电量 " + state.Percent + "% · ") + state.ReadAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
             Control<TextBlock>("ThresholdText").Text = state.Threshold + "%";
+            Control<TextBlock>("IdleMinutesText").Text = state.IdleMinutes + " 分钟";
+            Control<Slider>("IdleMinutes").IsEnabled = state.SkipIdleQueries;
+            Control<Slider>("IdleMinutes").Opacity = state.SkipIdleQueries ? 1 : 0.4;
             Control<TextBlock>("SaveStatus").Text = saveError ?? "";
             bool wasInitializing = initializing;
             initializing = true;
@@ -472,6 +512,17 @@ namespace PowerUI
             Save();
         }
 
+        private void IdleSettingsChanged(object sender, RoutedEventArgs e)
+        {
+            if (initializing) return;
+            state.SkipIdleQueries = Control<CheckBox>("SkipIdleQueries").IsChecked == true;
+            state.IdleMinutes = (int)Control<Slider>("IdleMinutes").Value;
+            Save();
+            Update();
+            if (busy) refreshPending = true;
+            else Refresh();
+        }
+
         private void Save()
         {
             if (saveError == "设置文件损坏且无法备份，暂不保存设置") return;
@@ -534,7 +585,14 @@ namespace PowerUI
                 + "; foreground capture=" + (DesktopNative.GetForegroundWindow() == handle)
                 + "; DPI=" + DesktopNative.GetDpiForWindow(handle) + "; theme=" + (dark ? "dark" : "light")
                 + "; tray mode=" + trayDisplay + "; mouse tray=" + mouseApp.tray.Visible + "; keyboard tray=" + keyboardApp.tray.Visible
-                + "; mouse percent=" + mouseApp.state.Percent + "; keyboard percent=" + keyboardApp.state.Percent);
+                + "; mouse percent=" + mouseApp.state.Percent + "; keyboard percent=" + keyboardApp.state.Percent
+                + "; activity registered=" + activity.Registered + "; mouse inputs=" + activity.MouseInputs + "; keyboard inputs=" + activity.KeyboardInputs
+                + "; raw messages=" + activity.Messages + "; header errors=" + activity.HeaderErrors + "; unmapped inputs=" + activity.UnmappedInputs
+                + "; header bytes=" + activity.LastHeaderBytes + "; header size=" + activity.LastHeaderSize
+                + "; mouse query skipped=" + mouseApp.querySkipped + "; keyboard query skipped=" + keyboardApp.querySkipped
+                + "; idle minutes=" + state.IdleMinutes + "; skip idle queries=" + state.SkipIdleQueries
+                + "; mouse read error=" + mouseApp.Control<TextBlock>("Status").ToolTip
+                + "; keyboard read error=" + keyboardApp.Control<TextBlock>("Status").ToolTip);
         }
 
         public void Dispose()
@@ -545,6 +603,7 @@ namespace PowerUI
             deviceTimer.Stop();
             var source = HwndSource.FromHwnd(handle);
             if (source != null) source.RemoveHook(DeviceChanged);
+            if (!keyboard && activity != null) activity.Dispose();
             SystemEvents.UserPreferenceChanged -= PreferencesChanged;
             tray.Visible = false;
             tray.ContextMenuStrip.Dispose();

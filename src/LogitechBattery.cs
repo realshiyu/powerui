@@ -116,15 +116,20 @@ namespace PowerUI
     internal static class DeviceBattery
     {
         internal static BatteryReading Read(int timeoutMilliseconds, bool keyboard = false, string preferredId = null,
-            ushort preferredVid = 0, ushort preferredPid = 0, byte preferredIndex = 0, Action<string> trace = null)
+            ushort preferredVid = 0, ushort preferredPid = 0, byte preferredIndex = 0, Action<string> trace = null,
+            Func<HidDevice, bool> canQuery = null, Action<System.Collections.Generic.List<HidDevice>> updateDevices = null)
         {
             var all = HidDevice.EnumerateSupported();
+            if (updateDevices != null) updateDevices(all);
             if (keyboard)
             {
                 var keyboards = all.Where(VgnBattery.IsSupported).ToList();
                 if (keyboards.Count != 1) throw new IOException(keyboards.Count == 0
                     ? "No supported keyboard interface is accessible." : "Multiple S99 receivers found; refusing ambiguous selection.");
-                return VgnBattery.Read(keyboards[0], timeoutMilliseconds, null);
+                if (canQuery != null && !canQuery(keyboards[0])) return Skipped(keyboards[0]);
+                var reading = VgnBattery.Read(keyboards[0], timeoutMilliseconds, null);
+                reading.DeviceId = keyboards[0].Identity;
+                return reading;
             }
             var devices = all.Where(d => RapooBattery.IsSupported(d) || LogitechBattery.IsSupported(d)).ToList();
             if (devices.Count == 0) throw new IOException("No supported mouse interface is accessible.");
@@ -135,6 +140,7 @@ namespace PowerUI
             {
                 try
                 {
+                    if (LogitechBattery.IsSupported(device) && canQuery != null && !canQuery(device)) return Skipped(device);
                     var reading = LogitechBattery.IsSupported(device)
                         ? LogitechBattery.Read(device, timeoutMilliseconds, trace, preferredIndex)
                         : RapooBattery.Read(device, all, timeoutMilliseconds, false);
@@ -149,12 +155,18 @@ namespace PowerUI
                 }
             })).ToArray();
             Task.WaitAll(pending);
-            var selected = pending.Select(task => task.Result).FirstOrDefault(reading => reading != null);
+            var selected = pending.Select(task => task.Result).FirstOrDefault(reading => reading != null && !reading.QuerySkipped);
             if (selected != null) return selected;
             // Receiver detection identifies the model, but never invents a fresh battery/status reading.
             var detected = devices.FirstOrDefault(RapooBattery.IsSupported);
-            return detected == null ? null : new BatteryReading { Percent = -1, HasStatus = false,
+            return detected == null ? pending.Select(task => task.Result).FirstOrDefault(reading => reading != null) : new BatteryReading { Percent = -1, HasStatus = false,
                 ReceiverVid = detected.VendorId, ReceiverPid = detected.ProductId, DeviceId = detected.Identity };
+        }
+
+        private static BatteryReading Skipped(HidDevice device)
+        {
+            return new BatteryReading { Percent = -1, HasStatus = false, QuerySkipped = true,
+                ReceiverVid = device.VendorId, ReceiverPid = device.ProductId, DeviceId = device.Identity };
         }
     }
 }
