@@ -104,9 +104,11 @@ namespace PowerUI
         private static string CollectionPath(string path)
         {
             // Raw Input uses mouse/keyboard class GUIDs; SetupAPI uses the HID class GUID.
+            // Keyboard HID interfaces may append a reference string after that GUID.
+            int end = path.EndsWith("\\kbd", StringComparison.OrdinalIgnoreCase) ? path.Length - 4 : path.Length;
             int suffix = path.LastIndexOf("#{", StringComparison.Ordinal);
             Guid interfaceClass;
-            return suffix >= 0 && Guid.TryParse(path.Substring(suffix + 1), out interfaceClass) ? path.Substring(0, suffix) : path;
+            return suffix >= 0 && Guid.TryParse(path.Substring(suffix + 1, end - suffix - 1), out interfaceClass) ? path.Substring(0, suffix) : path;
         }
 
         public void Dispose()
