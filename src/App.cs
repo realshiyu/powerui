@@ -183,6 +183,7 @@ namespace PowerUI
             foreach (int minutes in new[] { 1, 5, 10, 30 })
             {
                 var option = Control<RadioButton>("QueryInterval" + minutes);
+                option.GroupName = keyboard ? "KeyboardQueryInterval" : "MouseQueryInterval";
                 option.IsChecked = state.QueryIntervalMinutes == minutes;
                 option.Checked += delegate(object sender, RoutedEventArgs e)
                 {
