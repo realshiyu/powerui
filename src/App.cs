@@ -266,7 +266,7 @@ namespace PowerUI
             : state.ReceiverPid == 0x1421 ? "雷柏 VT3S MAX" : state.ReceiverPid == 0x1417 ? "雷柏 VT3 MAX" : "无线鼠标"; } }
         private TimeSpan QueryInterval { get { return TimeSpan.FromMinutes(state.QueryIntervalMinutes); } }
         private TimeSpan ReadingLifetime { get { return TimeSpan.FromMinutes(Math.Max(5, state.QueryIntervalMinutes + 1)); } }
-        private bool Recent { get { return freshThisRun && (keyboard || !state.Charging) && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= ReadingLifetime && state.ReadAtUtc <= DateTime.UtcNow; } }
+        private bool Recent { get { return freshThisRun && state.Percent >= 0 && DateTime.UtcNow - state.ReadAtUtc <= ReadingLifetime && state.ReadAtUtc <= DateTime.UtcNow; } }
         private bool ChargingRecent { get { return statusFreshThisRun && state.Charging && DateTime.UtcNow - state.StatusAtUtc <= ReadingLifetime; } }
 
         private void Show()
@@ -372,6 +372,7 @@ namespace PowerUI
                         state.ReadAtUtc = reading.ReadAtUtc;
                         freshThisRun = true;
                     }
+                    else freshThisRun = false;
                     state.Charging = reading.Charging;
                     state.ReceiverPid = reading.ReceiverPid;
                     state.ReceiverVid = reading.ReceiverVid;
@@ -451,7 +452,7 @@ namespace PowerUI
             initializing = wasInitializing;
             tray.Visible = trayDisplay == TrayDisplay.Separate
                 || (keyboard ? trayDisplay == TrayDisplay.Keyboard : trayDisplay == TrayDisplay.Mouse);
-            tray.Text = Model + " · " + (ChargingRecent ? "充电中" : recent ? state.Percent + "%" : "电量未更新");
+            tray.Text = Model + " · " + (recent ? state.Percent + "%" + (ChargingRecent ? " · 充电中" : "") : ChargingRecent ? "充电中" : "电量未更新");
             bool taskbarDark = ReadPreference("SystemUsesLightTheme", 1) == 0;
             int size = Math.Max(16, Forms.SystemInformation.SmallIconSize.Width);
             if (iconLabel != label || icon == null || iconDark != taskbarDark || iconSize != size)

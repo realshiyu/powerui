@@ -89,7 +89,7 @@ namespace PowerUI
         private static bool SameReceiver(HidDevice candidate, HidDevice device)
         {
             return candidate.VendorId == device.VendorId && candidate.ProductId == device.ProductId
-                && (device.ContainerId == null || candidate.ContainerId == device.ContainerId);
+                && device.ContainerId != null && candidate.ContainerId == device.ContainerId;
         }
 
         private static int SendQuery(HidDevice device, HidDevice feature, Action<string> trace, byte command, params byte[] arguments)
